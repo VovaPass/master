@@ -1,0 +1,172 @@
+# Lab3
+vov41234567890@yandex.ru
+2025-11-19
+
+# Цель работы
+
+## 1. Развить практические навыки использования языка программирования R для обработки данных
+
+## 2. Закрепить знания базовых типов данных языка R
+
+## 3. Развить практические навыки использования функций обработки данных пакета dplyr – функции select(), filter(), mutate(), arrange(), group_by()
+
+## Установка nycflights13
+
+    install.packages('nycflights13')
+
+## Загрузка библиотеки nycflights13
+
+    library(nycflights13)
+
+## Подсчет количество датафреймов и вывод результата
+
+    length(data(package = "nycflights13")$results[, "Item"])
+    [1] 5
+
+## Подсчет строк в каждом датафрейме и вывод результата
+
+    data.frame(
+      dataset = c("flights", "airlines", "airports", "weather", "planes"),
+      rows = c(
+        nrow(flights),
+        nrow(airlines),
+        nrow(airports),
+        nrow(weather),
+        nrow(planes)
+      )
+    )
+
+       dataset   rows
+    1  flights 336776
+    2 airlines     16
+    3 airports   1458
+    4  weather  26115
+    5   planes   3322
+
+## Подсчет столбцов в каждом датафрейме и вывод результата
+
+    > data.frame(
+    +     dataset = c("flights", "airlines", "airports", "weather", "planes"),
+    +     columns = c(
+    +         ncol(flights),
+    +         ncol(airlines),
+    +         ncol(airports),
+    +         ncol(weather),
+    +         ncol(planes)
+    +     )
+    + )
+
+       dataset columns
+    1  flights      19
+    2 airlines       2
+    3 airports       8
+    4  weather      15
+    5   planes       9
+
+## Просмотр примерного вида датафрейма
+
+    str(flights)
+    tibble [336,776 × 19] (S3: tbl_df/tbl/data.frame)
+     $ year          : int [1:336776] 2013 2013 2013 2013 2013 2013 2013 2013 2013 2013 ...
+     $ month         : int [1:336776] 1 1 1 1 1 1 1 1 1 1 ...
+     $ day           : int [1:336776] 1 1 1 1 1 1 1 1 1 1 ...
+     $ dep_time      : int [1:336776] 517 533 542 544 554 554 555 557 557 558 ...
+     $ sched_dep_time: int [1:336776] 515 529 540 545 600 558 600 600 600 600 ...
+     $ dep_delay     : num [1:336776] 2 4 2 -1 -6 -4 -5 -3 -3 -2 ...
+     $ arr_time      : int [1:336776] 830 850 923 1004 812 740 913 709 838 753 ...
+     $ sched_arr_time: int [1:336776] 819 830 850 1022 837 728 854 723 846 745 ...
+     $ arr_delay     : num [1:336776] 11 20 33 -18 -25 12 19 -14 -8 8 ...
+     $ carrier       : chr [1:336776] "UA" "UA" "AA" "B6" ...
+     $ flight        : int [1:336776] 1545 1714 1141 725 461 1696 507 5708 79 301 ...
+     $ tailnum       : chr [1:336776] "N14228" "N24211" "N619AA" "N804JB" ...
+     $ origin        : chr [1:336776] "EWR" "LGA" "JFK" "JFK" ...
+     $ dest          : chr [1:336776] "IAH" "IAH" "MIA" "BQN" ...
+     $ air_time      : num [1:336776] 227 227 160 183 116 150 158 53 140 138 ...
+     $ distance      : num [1:336776] 1400 1416 1089 1576 762 ...
+     $ hour          : num [1:336776] 5 5 5 5 6 5 6 6 6 6 ...
+     $ minute        : num [1:336776] 15 29 40 45 0 58 0 0 0 0 ...
+     $ time_hour     : POSIXct[1:336776], format: "2013-01-01 05:00:00" "2013-01-01 05:00:00" "2013-01-01 05:00:00" "2013-01-01 05:00:00" ...
+
+## Кол-во компаний - перевозчиков
+
+    length(unique(flights$carrier))
+    [1] 16
+
+## Кол-во рейсов за май
+
+    sum(flights$month == 5 & flights$dest == "JFK")
+    [1] 0
+
+## Самый северный аэропорт
+
+    airports[which.max(airports$lat), ]
+    # A tibble: 1 × 8
+      faa   name                      lat   lon   alt    tz dst   tzone
+      <chr> <chr>                   <dbl> <dbl> <dbl> <dbl> <chr> <chr>
+    1 EEN   Dillant Hopkins Airport  72.3  42.9   149    -5 A     NA   
+
+## Самый высокогорный аэропорт
+
+    airports[which.max(airports$alt), ]
+    # A tibble: 1 × 8
+      faa   name        lat   lon   alt    tz dst   tzone         
+      <chr> <chr>     <dbl> <dbl> <dbl> <dbl> <chr> <chr>         
+    1 TEX   Telluride  38.0 -108.  9078    -7 A     America/Denver
+
+## Топ 10 самых старых самолетов и их номера
+
+    planes_sorted <- planes[order(planes$year, na.last = NA), ]
+    > head(planes_sorted, 10)[, c("tailnum", "year")]
+    # A tibble: 10 × 2
+       tailnum  year
+       <chr>   <int>
+     1 N381AA   1956
+     2 N201AA   1959
+     3 N567AA   1959
+     4 N378AA   1963
+     5 N575AA   1963
+     6 N14629   1965
+     7 N615AA   1967
+     8 N425AA   1968
+     9 N383AA   1972
+    10 N364AA   1973
+
+## Средняя температура воздуха в аэропорту John F Kennedy Intl
+
+    weather %>%
+    +     filter(origin == "JFK", month == 9) %>%
+    +     summarise(mean_temp_c = mean((temp - 32) * 5/9, na.rm = TRUE))
+    # A tibble: 1 × 1
+      mean_temp_c
+            <dbl>
+    1        19.4
+
+## Нахождение авиакомпании, чей самолет, соверщил больше всего вылетов в июне
+
+    une_flights <- subset(flights, month == 6)
+    > counts <- table(june_flights$carrier)
+    > most_flights <- names(counts)[which.max(counts)]
+    > airlines[airlines$carrier == most_flights, ]
+    # A tibble: 1 × 2
+      carrier name                 
+      <chr>   <chr>                
+    1 UA      United Air Lines Inc.
+
+## Нахождение авиакомпании, чьи рейсы задерживались чаще других в 2013 году
+
+    delayed <- subset(flights, dep_delay > 0)
+    > counts <- table(delayed$carrier)
+    > most_delayed <- names(counts)[which.max(counts)]
+    > airlines[airlines$carrier == most_delayed, ]
+    # A tibble: 1 × 2
+      carrier name                 
+      <chr>   <chr>                
+    1 UA      United Air Lines Inc.
+
+## ВЫВОДЫ:
+
+## Развиты практические навыки использования языка программирования R для обработки данных
+
+## Закреплены знания базовых типов данных языка R
+
+## Развиты практические навыки использования функций обработки данных пакета dplyr – функции select(), filter(), mutate(), arrange(), group_by()
