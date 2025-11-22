@@ -1,10 +1,6 @@
----
-title: "Lab4"
-author: vov41234567890@yandex.ru
-date: "2025-11-22"
-format: md
-output-file: README.md
----
+# Lab4
+vov41234567890@yandex.ru
+2025-11-22
 
 # Цель работы
 
@@ -36,172 +32,144 @@ output-file: README.md
 
 #### 10. Определите местоположение (страну, город) и организацию-провайдера для топ-10 доменов. Для этого можно использовать сторонние сервисы,например http://ip-api.com (API-эндпоинт – http://ip-api.com/json).
 
-```         
-print(sessionInfo())
-```
+    print(sessionInfo())
 
 ## Произведем установку и загрузку вспомогательных файлов
 
-```         
-install.packages("readr")
-install.packages("tidyr") 
-install.packages("stringr") 
+    install.packages("readr")
+    install.packages("tidyr") 
+    install.packages("stringr") 
 
- library(readr)
- library(tidyr)
- library(stringr)
-```
+     library(readr)
+     library(tidyr)
+     library(stringr)
 
 ## Импорт данных
 
-```         
-url <- "https://storage.yandexcloud.net/dataset.ctfsec/dns.zip"
- 
- download.file(url, destfile = "dns.zip", mode = "wb") 
-```
+    url <- "https://storage.yandexcloud.net/dataset.ctfsec/dns.zip"
+     
+     download.file(url, destfile = "dns.zip", mode = "wb") 
 
 ## Распаковка данных из архива
 
-```         
-unzip("dns.zip", exdir = "dns_data")
- 
-```
+    unzip("dns.zip", exdir = "dns_data")
+     
 
 ## Проверка работоспособности импортированных данных
 
-```         
- readLines("dns_data/dns.log", n = 50)
-```
+     readLines("dns_data/dns.log", n = 50)
 
 ## Преобразование данных в нужный формат
 
-```         
-dns <- read_tsv(
-+     "dns_data/dns.log",
-+     col_names = FALSE,
-+     col_types = cols(.default = "c"),
-+     quote = "")
-                                                                                 
+    dns <- read_tsv(
+    +     "dns_data/dns.log",
+    +     col_names = FALSE,
+    +     col_types = cols(.default = "c"),
+    +     quote = "")
+                                                                                     
 
- colnames(dns) <- c(
-+     "ts", "uid", "id_orig_h", "id_orig_p", "id_resp_h", "id_resp_p",
-+     "proto", "trans_id", "query", "qclass", "qclass_name", "qtype",
-+     "qtype_name", "rcode", "rcode_name",
-+     "AA", "TC", "RD", "RA",
-+     "Z", "answers", "TTLs", "rejected" )
-```
+     colnames(dns) <- c(
+    +     "ts", "uid", "id_orig_h", "id_orig_p", "id_resp_h", "id_resp_p",
+    +     "proto", "trans_id", "query", "qclass", "qclass_name", "qtype",
+    +     "qtype_name", "rcode", "rcode_name",
+    +     "AA", "TC", "RD", "RA",
+    +     "Z", "answers", "TTLs", "rejected" )
 
 ## Просмотр с помощью функции glimpse()
 
-```         
-glimpse(dns)
-```
+    glimpse(dns)
 
 ## Подсчет кол-ва участников информационного обмена в сети
 
-```         
-length(unique(dns$id_orig_h[str_detect(dns$id_orig_h, "^192\\.168\\.202\\.")]))
-```
+    length(unique(dns$id_orig_h[str_detect(dns$id_orig_h, "^192\\.168\\.202\\.")]))
 
 ## Соотношение участников обмена внутри
 
 сети и участников обращений к внешним ресурсам?
 
-```         
-summarise(dns, ratio = length(unique(c(id_orig_h[grepl("^192\\.168\\.", id_orig_h)], id_resp_h[grepl("^192\\.168\\.", id_resp_h)]))) / length(unique(id_orig_h[grepl("^192\\.168\\.", id_orig_h) & !grepl("^192\\.168\\.", id_resp_h)])))
-```
+    summarise(dns, ratio = length(unique(c(id_orig_h[grepl("^192\\.168\\.", id_orig_h)], id_resp_h[grepl("^192\\.168\\.", id_resp_h)]))) / length(unique(id_orig_h[grepl("^192\\.168\\.", id_orig_h) & !grepl("^192\\.168\\.", id_resp_h)])))
 
 ## Топ-10 участников сети, проявляющих
 
 наибольшую сетевую активность.
 
-```         
-dns %>% count(id_orig_h, sort = TRUE) %>% top_n(10, n)
-```
+    dns %>% count(id_orig_h, sort = TRUE) %>% top_n(10, n)
 
 ## Топ-10 доменов, к которым обращаются пользователи сети и соответственное количество обращений
 
-```         
- dns %>% count(query, sort = TRUE) %>% top_n(10, n)
-```
+     dns %>% count(query, sort = TRUE) %>% top_n(10, n)
 
 ## Опеределите базовые статистические характеристики (функция summary() ) интервала времени между последовательными обращениями к топ-10 доменам.
 
-```         
-library(dplyr)
- 
- dns %>%
-+     filter(query %in% top_domains) %>%
-+     arrange(query, as.numeric(ts)) %>%
-+     group_by(query) %>%
-+     mutate(interval = c(NA, diff(as.numeric(ts)))) %>%
-+     summarise(interval_stats = list(summary(interval, na.rm = TRUE)))
-```
+    library(dplyr)
+     
+     dns %>%
+    +     filter(query %in% top_domains) %>%
+    +     arrange(query, as.numeric(ts)) %>%
+    +     group_by(query) %>%
+    +     mutate(interval = c(NA, diff(as.numeric(ts)))) %>%
+    +     summarise(interval_stats = list(summary(interval, na.rm = TRUE)))
 
 ## Часто вредоносное программное обеспечение использует DNS канал в качестве канала управления, периодически отправляя запросы на подконтрольный злоумышленникам DNS сервер. По периодическим запросам на один и тот же домен можно выявить скрытый DNS канал. Есть ли такие IP адреса в исследуемом датасете?
 
-```         
-dns %>%
-  arrange(id_orig_h, query, as.numeric(ts)) %>%
-  group_by(id_orig_h, query) %>%
-  mutate(int = diff(c(NA, as.numeric(ts)))) %>%
-  summarise(sd_int = sd(int, na.rm = TRUE),
-            mean_int = mean(int, na.rm = TRUE),
-            n = n(),
-            .groups="drop") %>%
-  filter(n > 5, sd_int < mean_int * 0.1, mean_int > 0) %>%
-  arrange(sd_int)
-```
+    dns %>%
+      arrange(id_orig_h, query, as.numeric(ts)) %>%
+      group_by(id_orig_h, query) %>%
+      mutate(int = diff(c(NA, as.numeric(ts)))) %>%
+      summarise(sd_int = sd(int, na.rm = TRUE),
+                mean_int = mean(int, na.rm = TRUE),
+                n = n(),
+                .groups="drop") %>%
+      filter(n > 5, sd_int < mean_int * 0.1, mean_int > 0) %>%
+      arrange(sd_int)
 
 ## Определите местоположение (страну, город) и организацию-провайдера для топ-10 доменов. Для этого можно использовать сторонние сервисы, например http:/ /ip-api.com (API-эндпоинт – http:/ /ip-api.com/json).
 
-```         
-library(dplyr)
-library(httr)
-library(jsonlite)
+    library(dplyr)
+    library(httr)
+    library(jsonlite)
 
-# Топ-домены
-top_domains <- c(
-  "teredo.ipv6.microsoft.com",
-  "tools.google.com",
-  "www.apple.com",
-  "time.apple.com",
-  "safebrowsing.clients.google.com",
-  "*\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00",
-  "WPAD",
-  "44.206.168.192.in-addr.arpa",
-  "HPE8AA67",
-  "ISATAP"
-)
+    # Топ-домены
+    top_domains <- c(
+      "teredo.ipv6.microsoft.com",
+      "tools.google.com",
+      "www.apple.com",
+      "time.apple.com",
+      "safebrowsing.clients.google.com",
+      "*\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00",
+      "WPAD",
+      "44.206.168.192.in-addr.arpa",
+      "HPE8AA67",
+      "ISATAP"
+    )
 
-# Функция для получения геоданных по домену
-get_geo_info <- function(domain) {
-  url <- paste0("http://ip-api.com/json/", domain)
-  res <- try(GET(url), silent = TRUE)
-  
-  if(inherits(res, "try-error")) return(data.frame(domain=domain, country=NA, city=NA, isp=NA))
-  
-  data <- fromJSON(content(res, as="text", encoding="UTF-8"))
-  
-  if(data$status == "success") {
-    return(data.frame(
-      domain = domain,
-      country = data$country,
-      city    = data$city,
-      isp     = data$isp,
-      stringsAsFactors = FALSE
-    ))
-  } else {
-    return(data.frame(domain=domain, country=NA, city=NA, isp=NA, stringsAsFactors = FALSE))
-  }
-}
+    # Функция для получения геоданных по домену
+    get_geo_info <- function(domain) {
+      url <- paste0("http://ip-api.com/json/", domain)
+      res <- try(GET(url), silent = TRUE)
+      
+      if(inherits(res, "try-error")) return(data.frame(domain=domain, country=NA, city=NA, isp=NA))
+      
+      data <- fromJSON(content(res, as="text", encoding="UTF-8"))
+      
+      if(data$status == "success") {
+        return(data.frame(
+          domain = domain,
+          country = data$country,
+          city    = data$city,
+          isp     = data$isp,
+          stringsAsFactors = FALSE
+        ))
+      } else {
+        return(data.frame(domain=domain, country=NA, city=NA, isp=NA, stringsAsFactors = FALSE))
+      }
+    }
 
-# Применяем к каждому домену
-geo_df <- bind_rows(lapply(top_domains, get_geo_info))
+    # Применяем к каждому домену
+    geo_df <- bind_rows(lapply(top_domains, get_geo_info))
 
-# Результат
-print(geo_df)
-```
+    # Результат
+    print(geo_df)
 
 ## Оценка результата
 
