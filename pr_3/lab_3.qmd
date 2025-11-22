@@ -14,28 +14,32 @@ output-file: README.md
 
 ## 3. Развить практические навыки использования функций обработки данных пакета dplyr – функции select(), filter(), mutate(), arrange(), group_by()
 
+```{R}
+print(sessionInfo())
+```
+
 ## Установка nycflights13
 
-```         
+```{r}        
 install.packages('nycflights13')
 ```
 
 ## Загрузка библиотеки nycflights13
 
-```         
+```{r}         
 library(nycflights13)
 ```
 
 ## Подсчет количество датафреймов и вывод результата
 
-```         
+```{r}         
 length(data(package = "nycflights13")$results[, "Item"])
 [1] 5
 ```
 
 ## Подсчет строк в каждом датафрейме и вывод результата
 
-```         
+```{r}         
 data.frame(
   dataset = c("flights", "airlines", "airports", "weather", "planes"),
   rows = c(
@@ -57,7 +61,7 @@ data.frame(
 
 ## Подсчет столбцов в каждом датафрейме и вывод результата
 
-```         
+```{r}         
 > data.frame(
 +     dataset = c("flights", "airlines", "airports", "weather", "planes"),
 +     columns = c(
@@ -79,7 +83,7 @@ data.frame(
 
 ## Просмотр примерного вида датафрейма
 
-```         
+```{r}         
 str(flights)
 tibble [336,776 × 19] (S3: tbl_df/tbl/data.frame)
  $ year          : int [1:336776] 2013 2013 2013 2013 2013 2013 2013 2013 2013 2013 ...
@@ -105,21 +109,21 @@ tibble [336,776 × 19] (S3: tbl_df/tbl/data.frame)
 
 ## Кол-во компаний - перевозчиков
 
-```         
+```{r}         
 length(unique(flights$carrier))
 [1] 16
 ```
 
 ## Кол-во рейсов за май
 
-```         
+```{r}         
 sum(flights$month == 5 & flights$dest == "JFK")
 [1] 0
 ```
 
 ## Самый северный аэропорт
 
-```         
+```{r}         
 airports[which.max(airports$lat), ]
 # A tibble: 1 × 8
   faa   name                      lat   lon   alt    tz dst   tzone
@@ -129,7 +133,7 @@ airports[which.max(airports$lat), ]
 
 ## Самый высокогорный аэропорт
 
-```         
+```{r}         
 airports[which.max(airports$alt), ]
 # A tibble: 1 × 8
   faa   name        lat   lon   alt    tz dst   tzone         
@@ -139,7 +143,7 @@ airports[which.max(airports$alt), ]
 
 ## Топ 10 самых старых самолетов и их номера
 
-```         
+```{r}         
 planes_sorted <- planes[order(planes$year, na.last = NA), ]
 > head(planes_sorted, 10)[, c("tailnum", "year")]
 # A tibble: 10 × 2
@@ -159,7 +163,7 @@ planes_sorted <- planes[order(planes$year, na.last = NA), ]
 
 ## Средняя температура воздуха в аэропорту John F Kennedy Intl
 
-```         
+```{r}         
 weather %>%
 +     filter(origin == "JFK", month == 9) %>%
 +     summarise(mean_temp_c = mean((temp - 32) * 5/9, na.rm = TRUE))
@@ -171,7 +175,7 @@ weather %>%
 
 ## Нахождение авиакомпании, чей самолет, соверщил больше всего вылетов в июне
 
-```         
+```{r}        
 une_flights <- subset(flights, month == 6)
 > counts <- table(june_flights$carrier)
 > most_flights <- names(counts)[which.max(counts)]
@@ -184,7 +188,7 @@ une_flights <- subset(flights, month == 6)
 
 ## Нахождение авиакомпании, чьи рейсы задерживались чаще других в 2013 году
 
-```         
+```{r}         
 delayed <- subset(flights, dep_delay > 0)
 > counts <- table(delayed$carrier)
 > most_delayed <- names(counts)[which.max(counts)]
@@ -194,6 +198,15 @@ delayed <- subset(flights, dep_delay > 0)
   <chr>   <chr>                
 1 UA      United Air Lines Inc.
 ```
+
+## Оценка результата
+
+1.  Получены практические навыки использования языка программирования R для обработки данных
+
+2.  Закреплены знания базовых типов данных языка R
+
+3.  Получены практические навыки использования функций обработки данных пакета dplyr
+
 
 ## ВЫВОДЫ:
 
