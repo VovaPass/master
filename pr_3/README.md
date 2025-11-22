@@ -1,172 +1,180 @@
-# Lab3
+# Lab4
 vov41234567890@yandex.ru
-2025-11-19
+2025-11-22
 
 # Цель работы
 
-## 1. Развить практические навыки использования языка программирования R для обработки данных
+### 1.Зекрепить практические навыки использования языка программирования R для обработки данных
 
-## 2. Закрепить знания базовых типов данных языка R
+### 2.Закрепить знания основных функций обработки данных экосистемы tidyverse языка R
 
-## 3. Развить практические навыки использования функций обработки данных пакета dplyr – функции select(), filter(), mutate(), arrange(), group_by()
+### 3.Закрепить навыки исследования метаданных DNS трафика
 
-## Установка nycflights13
+## План
 
-    install.packages('nycflights13')
+#### 1. Импортируйте данные DNS – https://storage.yandexcloud.net/dataset.ctfsec/dns.zip Данные были собраны с помощью сетевого анализатора zeek
 
-## Загрузка библиотеки nycflights13
+#### 2. Добавьте пропущенные данные о структуре данных (назначении столбцов)
 
-    library(nycflights13)
+#### 3. Преобразуйте данные в столбцах в нужный формат,просмотрите общую структуру данных с помощью функции glimpse()
 
-## Подсчет количество датафреймов и вывод результата
+#### 4. Сколько участников информационного обмена всети Доброй Организации?
 
-    length(data(package = "nycflights13")$results[, "Item"])
-    [1] 5
+#### 5. Какое соотношение участников обмена внутрисети и участников обращений к внешним ресурсам?
 
-## Подсчет строк в каждом датафрейме и вывод результата
+#### 6. Найдите топ-10 участников сети, проявляющих наибольшую сетевую активность.
 
-    data.frame(
-      dataset = c("flights", "airlines", "airports", "weather", "planes"),
-      rows = c(
-        nrow(flights),
-        nrow(airlines),
-        nrow(airports),
-        nrow(weather),
-        nrow(planes)
-      )
+#### 7. Найдите топ-10 доменов, к которым обращаются пользователи сети и соответственное количество обращений
+
+#### 8. Опеределите базовые статистические характеристики (функция summary() ) интервала времени между последовательными обращениями к топ-10 доменам.
+
+#### 9. Часто вредоносное программное обеспечение использует DNS канал в качестве канала управления, периодически отправляя запросы на подконтрольный злоумышленникам DNS сервер. По периодическим запросам на один и тот же домен можно выявить скрытый DNS канал. Есть ли такие IP адреса в исследуемом датасете?
+
+#### 10. Определите местоположение (страну, город) и организацию-провайдера для топ-10 доменов. Для этого можно использовать сторонние сервисы,например http://ip-api.com (API-эндпоинт – http://ip-api.com/json).
+
+    print(sessionInfo())
+
+## Произведем установку и загрузку вспомогательных файлов
+
+    install.packages("readr")
+    install.packages("tidyr") 
+    install.packages("stringr") 
+
+     library(readr)
+     library(tidyr)
+     library(stringr)
+
+## Импорт данных
+
+    url <- "https://storage.yandexcloud.net/dataset.ctfsec/dns.zip"
+     
+     download.file(url, destfile = "dns.zip", mode = "wb") 
+
+## Распаковка данных из архива
+
+    unzip("dns.zip", exdir = "dns_data")
+     
+
+## Проверка работоспособности импортированных данных
+
+     readLines("dns_data/dns.log", n = 50)
+
+## Преобразование данных в нужный формат
+
+    dns <- read_tsv(
+    +     "dns_data/dns.log",
+    +     col_names = FALSE,
+    +     col_types = cols(.default = "c"),
+    +     quote = "")
+                                                                                     
+
+     colnames(dns) <- c(
+    +     "ts", "uid", "id_orig_h", "id_orig_p", "id_resp_h", "id_resp_p",
+    +     "proto", "trans_id", "query", "qclass", "qclass_name", "qtype",
+    +     "qtype_name", "rcode", "rcode_name",
+    +     "AA", "TC", "RD", "RA",
+    +     "Z", "answers", "TTLs", "rejected" )
+
+## Просмотр с помощью функции glimpse()
+
+    glimpse(dns)
+
+## Подсчет кол-ва участников информационного обмена в сети
+
+    length(unique(dns$id_orig_h[str_detect(dns$id_orig_h, "^192\\.168\\.202\\.")]))
+
+## Соотношение участников обмена внутри
+
+сети и участников обращений к внешним ресурсам?
+
+    summarise(dns, ratio = length(unique(c(id_orig_h[grepl("^192\\.168\\.", id_orig_h)], id_resp_h[grepl("^192\\.168\\.", id_resp_h)]))) / length(unique(id_orig_h[grepl("^192\\.168\\.", id_orig_h) & !grepl("^192\\.168\\.", id_resp_h)])))
+
+## Топ-10 участников сети, проявляющих
+
+наибольшую сетевую активность.
+
+    dns %>% count(id_orig_h, sort = TRUE) %>% top_n(10, n)
+
+## Топ-10 доменов, к которым обращаются пользователи сети и соответственное количество обращений
+
+     dns %>% count(query, sort = TRUE) %>% top_n(10, n)
+
+## Опеределите базовые статистические характеристики (функция summary() ) интервала времени между последовательными обращениями к топ-10 доменам.
+
+    library(dplyr)
+     
+     dns %>%
+    +     filter(query %in% top_domains) %>%
+    +     arrange(query, as.numeric(ts)) %>%
+    +     group_by(query) %>%
+    +     mutate(interval = c(NA, diff(as.numeric(ts)))) %>%
+    +     summarise(interval_stats = list(summary(interval, na.rm = TRUE)))
+
+## Часто вредоносное программное обеспечение использует DNS канал в качестве канала управления, периодически отправляя запросы на подконтрольный злоумышленникам DNS сервер. По периодическим запросам на один и тот же домен можно выявить скрытый DNS канал. Есть ли такие IP адреса в исследуемом датасете?
+
+    dns %>%
+      arrange(id_orig_h, query, as.numeric(ts)) %>%
+      group_by(id_orig_h, query) %>%
+      mutate(int = diff(c(NA, as.numeric(ts)))) %>%
+      summarise(sd_int = sd(int, na.rm = TRUE),
+                mean_int = mean(int, na.rm = TRUE),
+                n = n(),
+                .groups="drop") %>%
+      filter(n > 5, sd_int < mean_int * 0.1, mean_int > 0) %>%
+      arrange(sd_int)
+
+## Определите местоположение (страну, город) и организацию-провайдера для топ-10 доменов. Для этого можно использовать сторонние сервисы, например http:/ /ip-api.com (API-эндпоинт – http:/ /ip-api.com/json).
+
+    library(dplyr)
+    library(httr)
+    library(jsonlite)
+
+    # Топ-домены
+    top_domains <- c(
+      "teredo.ipv6.microsoft.com",
+      "tools.google.com",
+      "www.apple.com",
+      "time.apple.com",
+      "safebrowsing.clients.google.com",
+      "*\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00",
+      "WPAD",
+      "44.206.168.192.in-addr.arpa",
+      "HPE8AA67",
+      "ISATAP"
     )
 
-       dataset   rows
-    1  flights 336776
-    2 airlines     16
-    3 airports   1458
-    4  weather  26115
-    5   planes   3322
+    # Функция для получения геоданных по домену
+    get_geo_info <- function(domain) {
+      url <- paste0("http://ip-api.com/json/", domain)
+      res <- try(GET(url), silent = TRUE)
+      
+      if(inherits(res, "try-error")) return(data.frame(domain=domain, country=NA, city=NA, isp=NA))
+      
+      data <- fromJSON(content(res, as="text", encoding="UTF-8"))
+      
+      if(data$status == "success") {
+        return(data.frame(
+          domain = domain,
+          country = data$country,
+          city    = data$city,
+          isp     = data$isp,
+          stringsAsFactors = FALSE
+        ))
+      } else {
+        return(data.frame(domain=domain, country=NA, city=NA, isp=NA, stringsAsFactors = FALSE))
+      }
+    }
 
-## Подсчет столбцов в каждом датафрейме и вывод результата
+    # Применяем к каждому домену
+    geo_df <- bind_rows(lapply(top_domains, get_geo_info))
 
-    > data.frame(
-    +     dataset = c("flights", "airlines", "airports", "weather", "planes"),
-    +     columns = c(
-    +         ncol(flights),
-    +         ncol(airlines),
-    +         ncol(airports),
-    +         ncol(weather),
-    +         ncol(planes)
-    +     )
-    + )
+    # Результат
+    print(geo_df)
 
-       dataset columns
-    1  flights      19
-    2 airlines       2
-    3 airports       8
-    4  weather      15
-    5   planes       9
+## Оценка результата
 
-## Просмотр примерного вида датафрейма
+## В рамках практческой работы была исследована подозрительная сетевая активность во внутренней сети Доброй Организации. Были восстановлены недостающие метаданные и подготовлены ответы на вопросы.
 
-    str(flights)
-    tibble [336,776 × 19] (S3: tbl_df/tbl/data.frame)
-     $ year          : int [1:336776] 2013 2013 2013 2013 2013 2013 2013 2013 2013 2013 ...
-     $ month         : int [1:336776] 1 1 1 1 1 1 1 1 1 1 ...
-     $ day           : int [1:336776] 1 1 1 1 1 1 1 1 1 1 ...
-     $ dep_time      : int [1:336776] 517 533 542 544 554 554 555 557 557 558 ...
-     $ sched_dep_time: int [1:336776] 515 529 540 545 600 558 600 600 600 600 ...
-     $ dep_delay     : num [1:336776] 2 4 2 -1 -6 -4 -5 -3 -3 -2 ...
-     $ arr_time      : int [1:336776] 830 850 923 1004 812 740 913 709 838 753 ...
-     $ sched_arr_time: int [1:336776] 819 830 850 1022 837 728 854 723 846 745 ...
-     $ arr_delay     : num [1:336776] 11 20 33 -18 -25 12 19 -14 -8 8 ...
-     $ carrier       : chr [1:336776] "UA" "UA" "AA" "B6" ...
-     $ flight        : int [1:336776] 1545 1714 1141 725 461 1696 507 5708 79 301 ...
-     $ tailnum       : chr [1:336776] "N14228" "N24211" "N619AA" "N804JB" ...
-     $ origin        : chr [1:336776] "EWR" "LGA" "JFK" "JFK" ...
-     $ dest          : chr [1:336776] "IAH" "IAH" "MIA" "BQN" ...
-     $ air_time      : num [1:336776] 227 227 160 183 116 150 158 53 140 138 ...
-     $ distance      : num [1:336776] 1400 1416 1089 1576 762 ...
-     $ hour          : num [1:336776] 5 5 5 5 6 5 6 6 6 6 ...
-     $ minute        : num [1:336776] 15 29 40 45 0 58 0 0 0 0 ...
-     $ time_hour     : POSIXct[1:336776], format: "2013-01-01 05:00:00" "2013-01-01 05:00:00" "2013-01-01 05:00:00" "2013-01-01 05:00:00" ...
+## Вывод
 
-## Кол-во компаний - перевозчиков
-
-    length(unique(flights$carrier))
-    [1] 16
-
-## Кол-во рейсов за май
-
-    sum(flights$month == 5 & flights$dest == "JFK")
-    [1] 0
-
-## Самый северный аэропорт
-
-    airports[which.max(airports$lat), ]
-    # A tibble: 1 × 8
-      faa   name                      lat   lon   alt    tz dst   tzone
-      <chr> <chr>                   <dbl> <dbl> <dbl> <dbl> <chr> <chr>
-    1 EEN   Dillant Hopkins Airport  72.3  42.9   149    -5 A     NA   
-
-## Самый высокогорный аэропорт
-
-    airports[which.max(airports$alt), ]
-    # A tibble: 1 × 8
-      faa   name        lat   lon   alt    tz dst   tzone         
-      <chr> <chr>     <dbl> <dbl> <dbl> <dbl> <chr> <chr>         
-    1 TEX   Telluride  38.0 -108.  9078    -7 A     America/Denver
-
-## Топ 10 самых старых самолетов и их номера
-
-    planes_sorted <- planes[order(planes$year, na.last = NA), ]
-    > head(planes_sorted, 10)[, c("tailnum", "year")]
-    # A tibble: 10 × 2
-       tailnum  year
-       <chr>   <int>
-     1 N381AA   1956
-     2 N201AA   1959
-     3 N567AA   1959
-     4 N378AA   1963
-     5 N575AA   1963
-     6 N14629   1965
-     7 N615AA   1967
-     8 N425AA   1968
-     9 N383AA   1972
-    10 N364AA   1973
-
-## Средняя температура воздуха в аэропорту John F Kennedy Intl
-
-    weather %>%
-    +     filter(origin == "JFK", month == 9) %>%
-    +     summarise(mean_temp_c = mean((temp - 32) * 5/9, na.rm = TRUE))
-    # A tibble: 1 × 1
-      mean_temp_c
-            <dbl>
-    1        19.4
-
-## Нахождение авиакомпании, чей самолет, соверщил больше всего вылетов в июне
-
-    une_flights <- subset(flights, month == 6)
-    > counts <- table(june_flights$carrier)
-    > most_flights <- names(counts)[which.max(counts)]
-    > airlines[airlines$carrier == most_flights, ]
-    # A tibble: 1 × 2
-      carrier name                 
-      <chr>   <chr>                
-    1 UA      United Air Lines Inc.
-
-## Нахождение авиакомпании, чьи рейсы задерживались чаще других в 2013 году
-
-    delayed <- subset(flights, dep_delay > 0)
-    > counts <- table(delayed$carrier)
-    > most_delayed <- names(counts)[which.max(counts)]
-    > airlines[airlines$carrier == most_delayed, ]
-    # A tibble: 1 × 2
-      carrier name                 
-      <chr>   <chr>                
-    1 UA      United Air Lines Inc.
-
-## ВЫВОДЫ:
-
-## Развиты практические навыки использования языка программирования R для обработки данных
-
-## Закреплены знания базовых типов данных языка R
-
-## Развиты практические навыки использования функций обработки данных пакета dplyr – функции select(), filter(), mutate(), arrange(), group_by()
+## Таким мобразом в ходе работы мы зекрепили практические навыки использования языка программирования R для обработки данных, знания основных функций обработки данных экосистемы tidyverse языка R и навыки исследования метаданных DNS трафика
