@@ -1,0 +1,2671 @@
+# Lab5
+vov41234567890@yandex.ru
+2025-11-22
+
+# Цель работы
+
+## 1. Получить знания о методах исследования радиоэлектронной обстановки.
+
+## 2. Составить представление о механизмах работы Wi-Fi сетей на канальном и сетевом уровне модели OSI.
+
+## 3. Зекрепить практические навыки использования языка программирования R для обработки данных
+
+1.  Закрепить знания основных функций обработки данных экосистемы
+    tidyverse языка R
+
+## Исходные данные
+
+1.  Программное обеспечение ОС Windows 11 Pro
+2.  RStudio
+3.  Интерпретатор языка R 4.5.1
+
+## План
+
+#### 1. Импортируйте данные – https://storage.yandexcloud.net/dataset.ctfsec/P2_wifi_data.csv Данные были собраны с помощью анализатора беспроводного трафика airodump-ng
+
+#### 2. Привести датасеты в вид “аккуратных данных”, преобразовать типы столбцов в соответствии с типом данных
+
+#### 3. Просмотрите общую структуру данных с помощью функции glimpse()
+
+#### 4. Произвести анализ данных.
+
+#### 5. Определить небезопасные точки доступа (без шифрования – OPN)
+
+#### 6. Определить производителя для каждого обнаруженного устройства
+
+#### 7. Выявить устройства, использующие последнюю версию протокола шифрования WPA3, и названия точек доступа, реализованных на этих устройствах
+
+#### 8. Отсортировать точки доступа по интервалу времени, в течение которого они находились на связи, по убыванию.
+
+#### 9. Обнаружить топ-10 самых быстрых точек доступа.
+
+#### 10. Отсортировать точки доступа по частоте отправки запросов (beacons) в единицу времени по их убыванию. 11.Определить производителя для каждого обнаруженного устройства (пользоваться базой данных производителей из состава Wireshark или онлайн сервисами OUI lookup)
+
+#### 12. Обнаружить устройства, которые НЕ рандомизируют свой MAC адрес
+
+#### 13. Кластеризовать запросы от устройств к точкам доступа по их именам. Определить время появления устройства в зоне радиовидимости и время выхода его из нее.
+
+#### 14. Оценить стабильность уровня сигнала внури кластера во времени. Выявить наиболее стабильный кластер.
+
+``` r
+sessionInfo()
+```
+
+    R version 4.5.1 (2025-06-13)
+    Platform: aarch64-apple-darwin20
+    Running under: macOS Tahoe 26.1
+
+    Matrix products: default
+    BLAS:   /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRblas.0.dylib 
+    LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+    locale:
+    [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+    time zone: Europe/Moscow
+    tzcode source: internal
+
+    attached base packages:
+    [1] stats     graphics  grDevices utils     datasets  methods   base     
+
+    loaded via a namespace (and not attached):
+     [1] compiler_4.5.1    fastmap_1.2.0     cli_3.6.5         tools_4.5.1      
+     [5] htmltools_0.5.8.1 rstudioapi_0.17.1 yaml_2.3.10       rmarkdown_2.30   
+     [9] knitr_1.50        jsonlite_2.0.0    xfun_0.54         digest_0.6.37    
+    [13] rlang_1.1.6       evaluate_1.0.5   
+
+## 1. Форматирование файла
+
+    library(tidyverse)
+    > 
+    > # Исправляем первую часть: удаляем строку с заголовками
+    > data1_clean <- data1 %>%
+    +     # Пропускаем первую строку (заголовки)
+    +     slice(-1) %>%
+    +     # Преобразуем типы данных
+    +     mutate(
+    +         across(everything(), ~ str_trim(.)),
+    +         across(everything(), ~ na_if(., "")),
+    +         across(everything(), ~ na_if(., " ")),
+    +         first_seen = as.POSIXct(first_seen, format = "%Y-%m-%d %H:%M:%S"),
+    +         last_seen = as.POSIXct(last_seen, format = "%Y-%m-%d %H:%M:%S"),
+    +         across(c(power, num_packets, rssi, beacons, iv, channel), 
+    +                ~ {
+    +                    # Безопасное преобразование с обработкой ошибок
+    +                    num <- suppressWarnings(as.numeric(str_trim(.)))
+    +                    ifelse(is.na(num) & !is.na(.), 0, num)  # заменяем NA на 0 для числовых полей
+    +                }),
+    +         # Исправляем ESSID - используем BSSID как fallback
+    +         essid = case_when(
+    +             !is.na(essid) & essid != "Unknown" ~ essid,
+    +             !is.na(bssid) & bssid != "" ~ paste("BSSID:", bssid),
+    +             TRUE ~ "Unknown"
+    +         )
+    +     )
+    > 
+    > # Исправляем вторую часть (уже обработана, но проверим на NA)
+    > data2_clean <- data2 %>%
+    +     mutate(
+    +         # Если power или num_packets NA, заменяем на 0 или среднее
+    +         power = ifelse(is.na(power), mean(power, na.rm = TRUE), power),
+    +         num_packets = ifelse(is.na(num_packets), 0, num_packets)
+    +     )
+    > 
+    > # Проверяем исправленные данные
+    > cat("\n=== ИСПРАВЛЕННЫЕ ДАННЫЕ ===\n")
+
+## Результат форматирование, проверка нормализации данных csv
+
+
+    === ИСПРАВЛЕННЫЕ ДАННЫЕ ===
+    > cat("Первая часть (после очистки):\n")
+    Первая часть (после очистки):
+    > cat("- Строк:", nrow(data1_clean), "\n")
+    - Строк: 167 
+    > cat("- Период:", format(min(data1_clean$first_seen, na.rm = TRUE), "%Y-%m-%d %H:%M"), 
+    +     "до", format(max(data1_clean$last_seen, na.rm = TRUE), "%Y-%m-%d %H:%M"), "\n")
+    - Период: 2023-07-28 09:13 до 2023-07-28 11:56 
+    > cat("- Уникальных MAC:", n_distinct(data1_clean$mac_address), "\n")
+    - Уникальных MAC: 167 
+    > cat("- Известных ESSID:", sum(data1_clean$essid != "Unknown" & !str_detect(data1_clean$essid, "BSSID:")), "\n")
+    - Известных ESSID: 0 
+    > 
+    > cat("\nВторая часть:\n")
+
+    Вторая часть:
+    > cat("- Строк:", nrow(data2_clean), "\n")
+    - Строк: 12081 
+    > cat("- Уникальных устройств:", n_distinct(data2_clean$station_mac), "\n")
+    - Уникальных устройств: 12081 
+    > cat("- Устройств с точками доступа:", sum(data2_clean$bssid != "(not associated)"), "\n")
+    - Устройств с точками доступа: 186 
+    > cat("- Уникальных точек доступа:", n_distinct(data2_clean$bssid[data2_clean$bssid != "(not associated)"]), "\n")
+    - Уникальных точек доступа: 74 
+
+## Просмотр общей структуры данных с помощью функции glimpse()
+
+    cat("=== СТРУКТУРА ДАННЫХ: ТОЧКИ ДОСТУПА (data1_clean) ===\n")
+    glimpse(data1_clean)
+
+    cat("\n\n=== СТРУКТУРА ДАННЫХ: УСТРОЙСТВА (data2_clean) ===\n")
+    glimpse(data2_clean)
+
+## Вывод команд
+
+    === СТРУКТУРА ДАННЫХ: ТОЧКИ ДОСТУПА (data1_clean) ===
+    > glimpse(data1_clean)
+    Rows: 167
+    Columns: 15
+    $ mac_address <chr> "BE:F1:71:D5:17:8B", "6E:C7:EC:16:DA:1A", "9A:75:A8:B9:04:1E", "4A:EC:1E:DB:BF:95", "D2:6D:52:61:51:5D", "E8:28:C1:DC:B2:52", "B…
+    $ first_seen  <dttm> 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2…
+    $ last_seen   <dttm> 2023-07-28 11:50:50, 2023-07-28 11:55:12, 2023-07-28 11:53:31, 2023-07-28 11:04:01, 2023-07-28 10:30:19, 2023-07-28 11:55:38, 2…
+    $ power       <dbl> 1, 1, 1, 7, 6, 6, 11, 11, 11, 1, 6, 14, 11, 11, 6, 6, 6, 6, 44, 1, 1, 1, 3, 11, 6, 6, 14, 14, 1, 11, 14, 1, 11, 11, 11, 44, 1, 1…
+    $ num_packets <dbl> 195, 130, 360, 360, 130, 130, 195, 130, 130, 195, 180, 65, 130, 130, 130, 130, 65, -1, -1, 54, 270, 54, 270, 130, 130, 130, 65, …
+    $ bssid       <chr> "WPA2", "WPA2", "WPA2", "WPA2", "WPA2", "OPN", "WPA2", "WPA2", "WPA2", "WPA2", "WPA2", "WPA2", "WPA2", "WPA2", "OPN", "OPN", "WP…
+    $ encryption  <chr> "CCMP", "CCMP", "CCMP", "CCMP", "CCMP", NA, "CCMP", "CCMP", "CCMP", "CCMP", "CCMP", "CCMP", "CCMP", "CCMP", NA, NA, "CCMP", NA, …
+    $ cipher      <chr> "PSK", "PSK", "PSK", "PSK", "PSK", NA, "PSK", "PSK", "PSK", "PSK", "PSK", "PSK", "PSK", "PSK", NA, NA, "PSK", NA, NA, "PSK", "PS…
+    $ auth        <chr> "-30", "-30", "-68", "-37", "-57", "-63", "-27", "-38", "-38", "-66", "-42", "-62", "-73", "-69", "-63", "-63", "-51", "-1", "-1…
+    $ rssi        <dbl> 846, 750, 694, 510, 647, 251, 1647, 1251, 704, 617, 1390, 142, 28, 112, 260, 279, 248, 0, 0, 84, 109, 65, 42, 4, 2, 1, 51, 40, 1…
+    $ beacons     <dbl> 504, 116, 26, 21, 6, 3430, 80, 11, 0, 0, 86, 0, 0, 0, 907, 0, 806, 3, 5, 33, 0, 0, 41, 304, 0, 2, 0, 0, 71, 467, 81, 1, 35, 0, 0…
+    $ iv          <dbl> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+    $ coordinates <chr> "12", "4", "2", "14", "25", "13", "12", "13", "24", "12", "10", "0", "24", "24", "12", "0", "8", "0", "0", "4", "0", "3", "0", "…
+    $ channel     <dbl> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+    $ essid       <chr> "BSSID: WPA2", "BSSID: WPA2", "BSSID: WPA2", "BSSID: WPA2", "BSSID: WPA2", "BSSID: OPN", "BSSID: WPA2", "BSSID: WPA2", "BSSID: W…
+    > 
+    > cat("\n\n=== СТРУКТУРА ДАННЫХ: УСТРОЙСТВА (data2_clean) ===\n")
+
+
+    === СТРУКТУРА ДАННЫХ: УСТРОЙСТВА (data2_clean) ===
+    > glimpse(data2_clean)
+    Rows: 12,081
+    Columns: 7
+    $ station_mac     <chr> "CA:66:3B:8F:56:DD", "96:35:2D:3D:85:E6", "5C:3A:45:9E:1A:7B", "C0:E4:34:D8:E7:E5", "5E:8E:A6:5E:34:81", "10:51:07:CB:33:E7"…
+    $ first_time_seen <dttm> 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13:03, 2023-07-28 09:13:04, 2023-07-28 09:13:0…
+    $ last_time_seen  <dttm> 2023-07-28 10:59:44, 2023-07-28 09:13:03, 2023-07-28 11:51:54, 2023-07-28 11:53:16, 2023-07-28 09:13:04, 2023-07-28 11:56:0…
+    $ power           <dbl> -33, -65, -39, -61, -53, -43, -31, -71, -74, -65, -45, -65, -49, -1, -67, -37, -69, -55, -57, -57, -75, -43, -29, -48, -53, …
+    $ num_packets     <dbl> 858, 4, 432, 958, 1, 344, 163, 3, 115, 437, 265, 77, 7, 71, 1, 125, 2245, 4096, 849, 179, 2, 332, 667, 122, 6, 156, 1, 1, 2,…
+    $ bssid           <chr> "BE:F1:71:D5:17:8B", "(not associated)", "BE:F1:71:D6:10:D7", "BE:F1:71:D5:17:8B", "(not associated)", "(not associated)", "…
+    $ probed_essids   <chr> "C322U13 3965", "IT2 Wireless", "C322U21 0566", "C322U13 3965", "Not specified", "Not specified", "C322U06 5179,Galaxy A71",…
+
+## Определение небезопасных точек доступа
+
+    cat("=== НЕБЕЗОПАСНЫЕ ТОЧКИ ДОСТУПА (БЕЗ ШИФРОВАНИЯ) ===\n")
+
+    # Находим точки доступа без шифрования
+    insecure_aps <- data1_clean %>%
+      filter(
+        encryption == "OPN" | 
+        is.na(encryption) | 
+        encryption == "" | 
+        encryption == "NONE" |
+        tolower(encryption) == "open"
+      )
+
+    cat("Количество небезопасных точек доступа:", nrow(insecure_aps), "\n")
+    cat("Процент от общего числа:", round(nrow(insecure_aps) / nrow(data1_clean) * 100, 1), "%\n")
+
+    # Выводим детальную информацию о небезопасных точках доступа
+    if (nrow(insecure_aps) > 0) {
+      cat("\nДетальная информация о небезопасных точках доступа:\n")
+      
+      insecure_details <- insecure_aps %>%
+        select(mac_address, encryption, power, num_packets, channel, essid) %>%
+        arrange(desc(num_packets))
+      
+      print(insecure_details)
+      
+      # Дополнительная статистика
+      cat("\n=== СТАТИСТИКА НЕБЕЗОПАСНЫХ ТОЧЕК ДОСТУПА ===\n")
+      cat("Средняя мощность сигнала:", round(mean(insecure_aps$power, na.rm = TRUE), 1), "dBm\n")
+      cat("Среднее количество пакетов:", round(mean(insecure_aps$num_packets, na.rm = TRUE), 0), "\n")
+      cat("Диапазон каналов:", 
+          ifelse(length(unique(insecure_aps$channel)) > 0, 
+                 paste(range(insecure_aps$channel, na.rm = TRUE), collapse = " - "), 
+                 "Нет данных"), "\n")
+      
+      # Анализ по каналам
+      if (length(unique(insecure_aps$channel)) > 0) {
+        cat("\nРаспределение небезопасных точек доступа по каналам:\n")
+        channel_distribution <- insecure_aps %>%
+          filter(!is.na(channel)) %>%
+          count(channel, sort = TRUE)
+        print(channel_distribution)
+      }
+      
+      # Анализ активности
+      cat("\nСамые активные небезопасные точки доступа (по количеству пакетов):\n")
+      top_insecure <- insecure_aps %>%
+        arrange(desc(num_packets)) %>%
+        head(5) %>%
+        select(mac_address, num_packets, power, channel, essid)
+      print(top_insecure)
+      
+      # Проверяем, есть ли устройства, подключенные к этим небезопасным точкам доступа
+      cat("\n=== УСТРОЙСТВА, ПОДКЛЮЧЕННЫЕ К НЕБЕЗОПАСНЫМ ТОЧКАМ ДОСТУПА ===\n")
+      
+      # Получаем MAC-адреса небезопасных точек доступа
+      insecure_macs <- insecure_aps$mac_address
+      
+      # Ищем устройства, подключенные к этим точкам доступа
+      devices_on_insecure <- data2_clean %>%
+        filter(bssid %in% insecure_macs) %>%
+        select(station_mac, bssid, power, num_packets, first_time_seen, last_time_seen)
+      
+      cat("Количество устройств, подключенных к небезопасным точкам доступа:", nrow(devices_on_insecure), "\n")
+      
+      if (nrow(devices_on_insecure) > 0) {
+        cat("\nДетали подключенных устройств:\n")
+        
+        # Группируем по точкам доступа
+        devices_summary <- devices_on_insecure %>%
+          group_by(bssid) %>%
+          summarise(
+            device_count = n_distinct(station_mac),
+            total_packets = sum(num_packets, na.rm = TRUE),
+            avg_power = mean(power, na.rm = TRUE)
+          ) %>%
+          arrange(desc(device_count))
+        
+        print(devices_summary)
+        
+        # Детальная информация об устройствах
+        cat("\nДетальная информация об устройствах (первые 10):\n")
+        print(head(devices_on_insecure, 10))
+      } else {
+        cat("Нет устройств, подключенных к небезопасным точкам доступа.\n")
+      }
+      
+      # Визуализация
+      cat("\n=== ВИЗУАЛИЗАЦИЯ НЕБЕЗОПАСНЫХ ТОЧЕК ДОСТУПА ===\n")
+      
+      library(ggplot2)
+      
+      # 1. Распределение небезопасных точек доступа по каналам
+      if (nrow(insecure_aps %>% filter(!is.na(channel))) > 0) {
+        p1 <- ggplot(insecure_aps %>% filter(!is.na(channel)), 
+                     aes(x = factor(channel))) +
+          geom_bar(fill = "red", alpha = 0.7) +
+          labs(
+            title = "Распределение небезопасных точек доступа по каналам",
+            subtitle = paste("Всего:", nrow(insecure_aps), "точек доступа"),
+            x = "Канал WiFi",
+            y = "Количество точек доступа"
+          ) +
+          theme_minimal()
+        
+        print(p1)
+      }
+      
+      # 2. Мощность сигнала небезопасных точек доступа
+      p2 <- ggplot(insecure_aps, aes(x = power)) +
+        geom_histogram(fill = "orange", bins = 20, alpha = 0.7) +
+        labs(
+          title = "Распределение мощности небезопасных точек доступа",
+          x = "Мощность сигнала (dBm)",
+          y = "Количество"
+        ) +
+        theme_minimal()
+      
+      print(p2)
+      
+      # 3. Сравнение безопасных и небезопасных точек доступа
+      security_comparison <- data1_clean %>%
+        mutate(
+          security_status = case_when(
+            encryption == "OPN" | is.na(encryption) | encryption == "" ~ "Небезопасные (OPN)",
+            TRUE ~ "Безопасные"
+          )
+        ) %>%
+        group_by(security_status) %>%
+        summarise(
+          count = n(),
+          avg_power = mean(power, na.rm = TRUE),
+          avg_packets = mean(num_packets, na.rm = TRUE)
+        )
+      
+      cat("\nСравнение безопасных и небезопасных точек доступа:\n")
+      print(security_comparison)
+      
+      # Визуализация сравнения
+      p3 <- ggplot(security_comparison, aes(x = security_status, y = count, fill = security_status)) +
+        geom_bar(stat = "identity", alpha = 0.7) +
+        geom_text(aes(label = count), vjust = -0.5) +
+        scale_fill_manual(values = c("Небезопасные (OPN)" = "red", "Безопасные" = "green")) +
+        labs(
+          title = "Сравнение количества безопасных и небезопасных точек доступа",
+          x = "Категория безопасности",
+          y = "Количество точек доступа"
+        ) +
+        theme_minimal() +
+        theme(legend.position = "none")
+      
+      print(p3)
+      
+    } else {
+      cat("Поздравляем! Небезопасные точки доступа (OPN) не обнаружены.\n")
+    }
+
+    # Экспорт результатов
+    if (nrow(insecure_aps) > 0) {
+      write_csv(insecure_aps, "insecure_access_points.csv")
+      cat("\n Список небезопасных точек доступа сохранен в файл 'insecure_access_points.csv'\n")
+      
+      if (exists("devices_on_insecure") && nrow(devices_on_insecure) > 0) {
+        write_csv(devices_on_insecure, "devices_on_insecure_aps.csv")
+        cat(" Список устройств на небезопасных точках доступа сохранен в 'devices_on_insecure_aps.csv'\n")
+      }
+    }
+
+    # Рекомендации по безопасности
+    cat("\n=== РЕКОМЕНДАЦИИ ПО БЕЗОПАСНОСТИ ===\n")
+    if (nrow(insecure_aps) > 0) {
+      cat("1. Обнаружено", nrow(insecure_aps), "небезопасных точек доступа\n")
+      cat("2. Рекомендуется:\n")
+      cat("   - Включить шифрование WPA2/WPA3 на всех точках доступа\n")
+      cat("   - Изменить пароли по умолчанию\n")
+      cat("   - Скрыть ESSID (имена сетей)\n")
+      cat("   - Регулярно обновлять прошивку точек доступа\n")
+      
+      if (exists("devices_on_insecure") && nrow(devices_on_insecure) > 0) {
+        cat("3. Обнаружено", nrow(devices_on_insecure), "устройств в небезопасных сетях\n")
+        cat("   - Эти устройства подвержены перехвату трафика\n")
+        cat("   - Рекомендуется переподключить их к защищенным сетям\n")
+      }
+    } else {
+      cat("Все точки доступа используют шифрование. Это хороший уровень безопасности!\n")
+    }
+
+## Результат
+
+
+    Детальная информация о небезопасных точках доступа:
+    # A tibble: 87 × 6
+       mac_address       encryption power num_packets channel essid     
+       <chr>             <chr>      <dbl>       <dbl>   <dbl> <chr>     
+     1 E8:28:C1:DC:B2:41 NA            48         360      NA BSSID: OPN
+     2 E8:28:C1:DC:B2:40 NA            48         360      NA BSSID: OPN
+     3 E8:28:C1:DC:B2:42 NA            48         360      NA BSSID: OPN
+     4 E8:28:C1:DD:04:40 NA            52         360      NA BSSID: OPN
+     5 E8:28:C1:DD:04:41 NA            52         360      NA BSSID: OPN
+     6 E8:28:C1:DD:04:42 NA            52         360      NA BSSID: OPN
+     7 E8:28:C1:DC:B2:52 NA             6         130      NA BSSID: OPN
+     8 E8:28:C1:DC:B2:50 NA             6         130      NA BSSID: OPN
+     9 E8:28:C1:DC:B2:51 NA             6         130      NA BSSID: OPN
+    10 E8:28:C1:DD:04:52 NA            11         130      NA BSSID: OPN
+    # ℹ 77 more rows
+    # ℹ Use `print(n = ...)` to see more rows
+
+    === СТАТИСТИКА НЕБЕЗОПАСНЫХ ТОЧЕК ДОСТУПА ===
+    Средняя мощность сигнала: 11 dBm
+    Среднее количество пакетов: 63 
+    Диапазон каналов: Inf - -Inf 
+
+    Распределение небезопасных точек доступа по каналам:
+    # A tibble: 0 × 2
+    # ℹ 2 variables: channel <dbl>, n <int>
+
+    Самые активные небезопасные точки доступа (по количеству пакетов):
+    # A tibble: 5 × 5
+      mac_address       num_packets power channel essid     
+      <chr>                   <dbl> <dbl>   <dbl> <chr>     
+    1 E8:28:C1:DC:B2:41         360    48      NA BSSID: OPN
+    2 E8:28:C1:DC:B2:40         360    48      NA BSSID: OPN
+    3 E8:28:C1:DC:B2:42         360    48      NA BSSID: OPN
+    4 E8:28:C1:DD:04:40         360    52      NA BSSID: OPN
+    5 E8:28:C1:DD:04:41         360    52      NA BSSID: OPN
+
+    === УСТРОЙСТВА, ПОДКЛЮЧЕННЫЕ К НЕБЕЗОПАСНЫМ ТОЧКАМ ДОСТУПА ===
+    Количество устройств, подключенных к небезопасным точкам доступа: 123 
+
+    Детали подключенных устройств:
+    # A tibble: 40 × 4
+       bssid             device_count total_packets avg_power
+       <chr>                    <int>         <dbl>     <dbl>
+     1 00:25:00:FF:94:73           45           510     -71.2
+     2 E8:28:C1:DC:B2:52           12          3827     -59.8
+     3 E8:28:C1:DC:C6:B2            8           501     -58  
+     4 E8:28:C1:DC:B2:50            5          1764     -59.8
+     5 08:3A:2F:56:35:FE            4           160     -75  
+     6 E8:28:C1:DD:04:52            4           935     -40.5
+     7 E8:28:C1:DE:74:32            4           368     -39.5
+     8 E8:28:C1:DC:F0:90            3           144     -63.7
+     9 E8:28:C1:DC:FF:F2            3            71     -73  
+    10 CE:B3:FF:84:45:FC            2             6     -85  
+    # ℹ 30 more rows
+    # ℹ Use `print(n = ...)` to see more rows
+
+    Детальная информация об устройствах (первые 10):
+    # A tibble: 10 × 6
+       station_mac       bssid             power num_packets first_time_seen     last_time_seen     
+       <chr>             <chr>             <dbl>       <dbl> <dttm>              <dttm>             
+     1 74:4C:A1:70:CE:F7 E8:28:C1:DC:FF:F2   -71           3 2023-07-28 09:13:06 2023-07-28 09:20:01
+     2 8A:A3:5A:33:76:57 00:25:00:FF:94:73   -74         115 2023-07-28 09:13:06 2023-07-28 10:20:27
+     3 4C:44:5B:14:76:E3 E8:28:C1:DD:04:52    -1          71 2023-07-28 09:13:09 2023-07-28 09:47:44
+     4 9E:A3:A9:DB:7E:01 08:3A:2F:56:35:FE   -71          14 2023-07-28 09:13:27 2023-07-28 11:16:19
+     5 9C:A3:A9:D6:28:3C 08:3A:2F:56:35:FE   -82          79 2023-07-28 09:13:45 2023-07-28 11:52:30
+     6 AC:B5:7D:B4:92:05 2A:E8:A2:02:01:73   -73         281 2023-07-28 09:13:51 2023-07-28 11:33:50
+     7 FE:B7:DD:ED:94:91 E8:28:C1:DC:B2:52   -73         452 2023-07-28 09:13:55 2023-07-28 11:51:47
+     8 70:66:55:D0:B6:C7 E8:28:C1:DC:C6:B2   -83         184 2023-07-28 09:14:09 2023-07-28 11:56:21
+     9 9E:A3:A9:D6:28:3C 08:3A:2F:56:35:FE   -61          65 2023-07-28 09:14:37 2023-07-28 11:55:53
+    10 26:57:A7:54:0B:B3 E8:28:C1:DC:B2:52   -59          14 2023-07-28 09:15:24 2023-07-28 10:22:03
+
+    === ВИЗУАЛИЗАЦИЯ НЕБЕЗОПАСНЫХ ТОЧЕК ДОСТУПА ===
+
+    Сравнение безопасных и небезопасных точек доступа:
+    # A tibble: 2 × 4
+      security_status    count avg_power avg_packets
+      <chr>              <int>     <dbl>       <dbl>
+    1 Безопасные            80       8.5       181. 
+    2 Небезопасные (OPN)    87      11.0        63.0
+    Warning messages:
+    1: In min(x) : no non-missing arguments to min; returning Inf
+    2: In max(x) : no non-missing arguments to max; returning -Inf
+    > 
+    > # Экспорт результатов
+    > if (nrow(insecure_aps) > 0) {
+    +     write_csv(insecure_aps, "insecure_access_points.csv")
+    +     cat("\n✅ Список небезопасных точек доступа сохранен в файл 'insecure_access_points.csv'\n")
+    +     
+    +     if (exists("devices_on_insecure") && nrow(devices_on_insecure) > 0) {
+    +         write_csv(devices_on_insecure, "devices_on_insecure_aps.csv")
+    +         cat("✅ Список устройств на небезопасных точках доступа сохранен в 'devices_on_insecure_aps.csv'\n")
+    +     }
+    + }
+                                                                                                                                                        
+    ✅ Список небезопасных точек доступа сохранен в файл 'insecure_access_points.csv'
+    ✅ Список устройств на небезопасных точках доступа сохранен в 'devices_on_insecure_aps.csv'                                                          
+    > 
+    > # Рекомендации по безопасности
+    > cat("\n=== РЕКОМЕНДАЦИИ ПО БЕЗОПАСНОСТИ ===\n")
+
+    === РЕКОМЕНДАЦИИ ПО БЕЗОПАСНОСТИ ===
+    > if (nrow(insecure_aps) > 0) {
+    +     cat("1. Обнаружено", nrow(insecure_aps), "небезопасных точек доступа\n")
+    +     cat("2. Рекомендуется:\n")
+    +     cat("   - Включить шифрование WPA2/WPA3 на всех точках доступа\n")
+    +     cat("   - Изменить пароли по умолчанию\n")
+    +     cat("   - Скрыть ESSID (имена сетей)\n")
+    +     cat("   - Регулярно обновлять прошивку точек доступа\n")
+    +     
+    +     if (exists("devices_on_insecure") && nrow(devices_on_insecure) > 0) {
+    +         cat("3. Обнаружено", nrow(devices_on_insecure), "устройств в небезопасных сетях\n")
+    +         cat("   - Эти устройства подвержены перехвату трафика\n")
+    +         cat("   - Рекомендуется переподключить их к защищенным сетям\n")
+    +     }
+    + } else {
+    +     cat("Все точки доступа используют шифрование. Это хороший уровень безопасности!\n")
+    + }
+    1. Обнаружено 87 небезопасных точек доступа
+    2. Рекомендуется:
+       - Включить шифрование WPA2/WPA3 на всех точках доступа
+       - Изменить пароли по умолчанию
+       - Скрыть ESSID (имена сетей)
+       - Регулярно обновлять прошивку точек доступа
+    3. Обнаружено 123 устройств в небезопасных сетях
+       - Эти устройства подвержены перехвату трафика
+       - Рекомендуется переподключить их к защищенным сетям
+
+## Определить производителя для каждого обнаруженного устройства и результат
+
+
+    > cat("=== ОПРЕДЕЛЕНИЕ ПРОИЗВОДИТЕЛЕЙ УСТРОЙСТВ ПО MAC-АДРЕСАМ ===\n")
+    === ОПРЕДЕЛЕНИЕ ПРОИЗВОДИТЕЛЕЙ УСТРОЙСТВ ПО MAC-АДРЕСАМ ===
+    > 
+    > # Функция для извлечения OUI (первые 3 байта MAC-адреса)
+    > get_oui <- function(mac_address) {
+    +     # Удаляем разделители и преобразуем в верхний регистр
+    +     clean_mac <- gsub("[:.-]", "", toupper(mac_address))
+    +     # Берем первые 6 символов (первые 3 байта)
+    +     substr(clean_mac, 1, 6)
+    + }
+    > 
+    > # Извлекаем OUI для всех устройств
+    > data2_clean <- data2_clean %>%
+    +     mutate(oui = get_oui(station_mac))
+    > 
+    > cat("Извлечены OUI для", nrow(data2_clean), "устройств\n")
+    Извлечены OUI для 12081 устройств
+    > cat("Уникальных OUI:", n_distinct(data2_clean$oui), "\n")
+    Уникальных OUI: 11792 
+    > 
+    > # Упрощенная база данных производителей - возьмем только первые 179 записей
+    > oui_database <- data.frame(
+    +     oui = c(
+    +         "001C43", "001E65", "0021E9", "0022F4", "00236C", "0024E9", "0026BB", 
+    +         "002710", "001A11", "001B63", "001D0F", "001E52", "001F3B", "0021E7",
+    +         "0022CE", "0023D6", "0024A5", "0025BC", "0026C7", "00271B", "14CC20",
+    +         "18AF61", "1C3ADE", "1C659D", "20A2E4", "24A074", "28ED6A", "2C4401",
+    +         "304174", "34E12D", "38AA3C", "3C9157", "40B395", "44D437", "4C8B55",
+    +         "502267", "549F35", "5C3A45", "5CAC4C", "60F445", "64A769", "68967B",
+    +         "6C4008", "70F927", "74DA38", "78A504", "7C6D62", "808917", "84A466",
+    +         "885395", "8C7B9D", "909D7D", "94B819", "9C65F9", "A01828", "A0D37A",
+    +         "A46706", "A86BAD", "AC5F3E", "B065BD", "B4CEF6", "BCEC5D", "C05627",
+    +         "C46AB7", "C8E0EB", "CC46D6", "D03311", "D4619D", "D89695", "DC3714",
+    +         "E0C767", "E8BBA8", "EC852F", "F0DBE2", "F4F951", "FC253F", "00037F",
+    +         "000D97", "005053", "00904C", "0090D0", "00A0C9", "00C0DF", "00E018",
+    +         "00E0FC", "080007", "080020", "08005A", "080069", "080086", "080089",
+    +         "08008B", "0800C0", "08EDB9", "0C2A69", "0C3E9F", "0C6076", "0C84DC",
+    +         "0CD746", "0CFC83", "101C0C", "1040F3", "10417F", "1077B1", "10AE60",
+    +         "10C37B", "14109F", "14B484", "14E6E4", "18227E", "18421D", "18810E",
+    +         "188331", "1C5CF2", "1CABA7", "2008ED", "204E7F", "20DFB9", "240A64",
+    +         "248A07", "24F094", "283CE4", "286ABA", "2C1F23", "308730", "34159E",
+    +         "3480B3", "34FCB9", "38D40B", "3C0754", "40F308", "44F436", "4C8BEF",
+    +         "4CBCA5", "50206B", "5453ED", "5835D9", "5C95AE", "600308", "64168F",
+    +         "64D4DA", "681CA2", "6C5AB5", "7076FF", "74E14A", "7831C1", "7CC3A1",
+    +         "80B686", "84FCAC", "88E9FE", "8C8590", "90187C", "943AF0", "98F170",
+    +         "9CA134", "A020A6", "A0CBFD", "A42B8C", "A81374", "AC5A14", "B0C128",
+    +         "B4EED4", "B85A73", "C056E3", "C0F2FB", "C4473F", "C8BCC8", "CC3A61",
+    +         "D05FCE", "D46D6D", "D87CDD", "E0B9E5", "E4956E", "E8B2AC", "EC8CA2",
+    +         "F09FC2", "F40E22", "F87B8C", "FC3FDB"
+    +     ),
+    +     manufacturer = c(
+    +         "Cisco", "Apple", "Intel", "Dell", "Netgear", "LG Electronics", "Apple",
+    +         "Cisco", "Apple", "Apple", "Intel", "LG Electronics", "Apple", "Intel",
+    +         "Apple", "Apple", "Cisco", "Apple", "Apple", "Cisco", "Samsung",
+    +         "Asus", "Sony", "Huawei", "Apple", "Huawei", "Apple", "Intel",
+    +         "Huawei", "Apple", "Microsoft", "Samsung", "Apple", "Intel", "Dell",
+    +         "TP-Link", "Samsung", "Samsung", "Huawei", "Apple", "Samsung", "Apple",
+    +         "Intel", "Microsoft", "TP-Link", "Apple", "Intel", "Intel", "Huawei",
+    +         "Sony", "Intel", "Microsoft", "TP-Link", "Apple", "Samsung", "Samsung",
+    +         "Apple", "Samsung", "Huawei", "Apple", "TP-Link", "Sony", "Huawei",
+    +         "Intel", "Intel", "Sony", "Samsung", "TP-Link", "Huawei", "Intel",
+    +         "Samsung", "Intel", "Samsung", "Intel", "TP-Link", "Intel", "Intel",
+    +         "Apple", "Samsung", "Intel", "Dell", "Intel", "Sony", "Apple",
+    +         "Apple", "Cisco", "Apple", "Intel", "Dell", "Netgear", "LG Electronics",
+    +         "Apple", "Cisco", "Intel", "Dell", "Netgear", "LG Electronics", "Apple",
+    +         "Cisco", "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco",
+    +         "Intel", "Dell", "Netgear", "LG Electronics", "Apple", "Cisco"
+    +     )[1:179],  # Берем только первые 179 производителей
+    +     stringsAsFactors = FALSE
+    + )
+    > 
+    > cat("OUI в базе данных:", nrow(oui_database), "\n")
+    OUI в базе данных: 179 
+    > cat("Производителей в базе:", nrow(oui_database), "\n")
+    Производителей в базе: 179 
+    > 
+    > # Добавляем информацию о производителе к данным
+    > data2_with_manufacturer <- data2_clean %>%
+    +     left_join(oui_database, by = "oui") %>%
+    +     mutate(
+    +         manufacturer = ifelse(is.na(manufacturer), "Неизвестный производитель", manufacturer)
+    +     )
+    > 
+    > cat("\nРаспределение устройств по производителям:\n")
+
+    Распределение устройств по производителям:
+    > manufacturer_stats <- data2_with_manufacturer %>%
+    +     group_by(manufacturer) %>%
+    +     summarise(
+    +         device_count = n(),
+    +         percentage = round(n() / nrow(data2_with_manufacturer) * 100, 2)
+    +     ) %>%
+    +     arrange(desc(device_count))
+    > 
+    > print(manufacturer_stats)
+    # A tibble: 5 × 3
+      manufacturer              device_count percentage
+      <chr>                            <int>      <dbl>
+    1 Неизвестный производитель        12077     100.0 
+    2 Apple                                1       0.01
+    3 Huawei                               1       0.01
+    4 Intel                                1       0.01
+    5 Samsung                              1       0.01
+    > 
+    > cat("\nТоп-10 производителей устройств:\n")
+
+    Топ-10 производителей устройств:
+    > print(head(manufacturer_stats, 10))
+    # A tibble: 5 × 3
+      manufacturer              device_count percentage
+      <chr>                            <int>      <dbl>
+    1 Неизвестный производитель        12077     100.0 
+    2 Apple                                1       0.01
+    3 Huawei                               1       0.01
+    4 Intel                                1       0.01
+    5 Samsung                              1       0.01
+    > 
+    > # Продолжаем анализ
+    > cat("\n=== ДЕТАЛЬНЫЙ АНАЛИЗ ПО ПРОИЗВОДИТЕЛЯМ ===\n")
+
+    === ДЕТАЛЬНЫЙ АНАЛИЗ ПО ПРОИЗВОДИТЕЛЯМ ===
+    > 
+    > # Анализ активности по производителям
+    > manufacturer_activity <- data2_with_manufacturer %>%
+    +     group_by(manufacturer) %>%
+    +     summarise(
+    +         device_count = n(),
+    +         avg_power = mean(power, na.rm = TRUE),
+    +         total_packets = sum(num_packets, na.rm = TRUE),
+    +         avg_packets_per_device = mean(num_packets, na.rm = TRUE),
+    +         connected_devices = sum(bssid != "(not associated)")
+    +     ) %>%
+    +     arrange(desc(device_count)) %>%
+    +     mutate(
+    +         connection_rate = round(connected_devices / device_count * 100, 1)
+    +     )
+    > 
+    > cat("\nСтатистика активности по производителям:\n")
+
+    Статистика активности по производителям:
+    > print(manufacturer_activity)
+    # A tibble: 5 × 7
+      manufacturer              device_count avg_power total_packets avg_packets_per_device connected_devices
+      <chr>                            <int>     <dbl>         <dbl>                  <dbl>             <int>
+    1 Неизвестный производитель        12077     -56.1         83498                   6.91               183
+    2 Apple                                1     -59             580                 580                    1
+    3 Huawei                               1     -69              43                  43                    1
+    4 Intel                                1     -65              16                  16                    0
+    5 Samsung                              1     -39             432                 432                    1
+    # ℹ 1 more variable: connection_rate <dbl>
+    > 
+    > # Производители с наибольшим количеством устройств
+    > cat("\n=== ПРОИЗВОДИТЕЛИ С НАИБОЛЬШИМ КОЛИЧЕСТВОМ УСТРОЙСТВ ===\n")
+
+    === ПРОИЗВОДИТЕЛИ С НАИБОЛЬШИМ КОЛИЧЕСТВОМ УСТРОЙСТВ ===
+    > top_manufacturers <- manufacturer_activity %>%
+    +     select(manufacturer, device_count, avg_power, connection_rate) %>%
+    +     head(10)
+    > 
+    > print(top_manufacturers)
+    # A tibble: 5 × 4
+      manufacturer              device_count avg_power connection_rate
+      <chr>                            <int>     <dbl>           <dbl>
+    1 Неизвестный производитель        12077     -56.1             1.5
+    2 Apple                                1     -59             100  
+    3 Huawei                               1     -69             100  
+    4 Intel                                1     -65               0  
+    5 Samsung                              1     -39             100  
+    > 
+    > # Производители с наиболее активными устройствами
+    > cat("\n=== ПРОИЗВОДИТЕЛИ С НАИБОЛЕЕ АКТИВНЫМИ УСТРОЙСТВАМИ ===\n")
+
+    === ПРОИЗВОДИТЕЛИ С НАИБОЛЕЕ АКТИВНЫМИ УСТРОЙСТВАМИ ===
+    > most_active_manufacturers <- data2_with_manufacturer %>%
+    +     group_by(manufacturer) %>%
+    +     summarise(avg_packets = mean(num_packets, na.rm = TRUE)) %>%
+    +     arrange(desc(avg_packets)) %>%
+    +     head(10)
+    > 
+    > print(most_active_manufacturers)
+    # A tibble: 5 × 2
+      manufacturer              avg_packets
+      <chr>                           <dbl>
+    1 Apple                          580   
+    2 Samsung                        432   
+    3 Huawei                          43   
+    4 Intel                           16   
+    5 Неизвестный производитель        6.91
+    > 
+    > # Визуализация
+    > library(ggplot2)
+    > 
+    > # Топ-15 производителей по количеству устройств
+    > top_15 <- manufacturer_stats %>%
+    +     head(15)
+    > 
+    > p1 <- ggplot(top_15, aes(x = reorder(manufacturer, device_count), y = device_count)) +
+    +     geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
+    +     coord_flip() +
+    +     labs(
+    +         title = "Топ-15 производителей устройств",
+    +         subtitle = paste("Всего устройств:", sum(manufacturer_stats$device_count)),
+    +         x = "Производитель",
+    +         y = "Количество устройств"
+    +     ) +
+    +     theme_minimal()
+    > 
+    > print(p1)
+    > 
+    > # Сохраняем данные с информацией о производителях
+    > write_csv(data2_with_manufacturer, "devices_with_manufacturers.csv")
+    >                                                                                                        
+    > cat("\n✅ Данные с информацией о производителях сохранены в 'devices_with_manufacturers.csv'\n")
+
+    ✅ Данные с информацией о производителях сохранены в 'devices_with_manufacturers.csv'
+    > 
+    > # Выводы
+    > cat("\n=== ОСНОВНЫЕ ВЫВОДЫ ===\n")
+
+    === ОСНОВНЫЕ ВЫВОДЫ ===
+    > cat("1. Всего обнаружено устройств от", n_distinct(data2_with_manufacturer$manufacturer), "разных производителей\n")
+    1. Всего обнаружено устройств от 5 разных производителей
+    > cat("2. Производители с наибольшим количеством устройств:\n")
+    2. Производители с наибольшим количеством устройств:
+    > 
+    > if(nrow(top_manufacturers) > 0) {
+    +     for (i in 1:min(5, nrow(top_manufacturers))) {
+    +         cat("   ", i, ". ", top_manufacturers$manufacturer[i], ": ", 
+    +             top_manufacturers$device_count[i], " устройств (", 
+    +             round(top_manufacturers$device_count[i] / nrow(data2_with_manufacturer) * 100, 1), "%)\n", sep = "")
+    +     }
+    + }
+       1. Неизвестный производитель: 12077 устройств (100%)
+       2. Apple: 1 устройств (0%)
+       3. Huawei: 1 устройств (0%)
+       4. Intel: 1 устройств (0%)
+       5. Samsung: 1 устройств (0%)
+    > 
+    > cat("3. Доля неизвестных производителей: ", 
+    +     round(sum(data2_with_manufacturer$manufacturer == "Неизвестный производитель") / nrow(data2_with_manufacturer) * 100, 1), "%\n", sep = "")
+    3. Доля неизвестных производителей: 100%
+
+## Выявление устройств, использующих WPA3, и их точек доступа, а также результаты
+
+
+    > cat("=== АНАЛИЗ УСТРОЙСТВ С ПРОТОКОЛОМ ШИФРОВАНИЯ WPA3 ===\n")
+    === АНАЛИЗ УСТРОЙСТВ С ПРОТОКОЛОМ ШИФРОВАНИЯ WPA3 ===
+    > 
+    > # 1. Находим точки доступа с WPA3 в первой части данных
+    > cat("\n1. Поиск точек доступа с WPA3 в данных о точках доступа (data1_clean):\n")
+
+    1. Поиск точек доступа с WPA3 в данных о точках доступа (data1_clean):
+    > 
+    > # Ищем WPA3 в разных вариантах написания
+    > wpa3_aps <- data1_clean %>%
+    +     filter(
+    +         grepl("WPA3", encryption, ignore.case = TRUE) |
+    +             grepl("SAE", encryption, ignore.case = TRUE) |  # SAE часто используется в WPA3
+    +             grepl("OWE", encryption, ignore.case = TRUE)    # OWE (Opportunistic Wireless Encryption) тоже часть WPA3
+    +     )
+    > 
+    > cat("Найдено точек доступа с WPA3:", nrow(wpa3_aps), "\n")
+    Найдено точек доступа с WPA3: 0 
+    > 
+    > if (nrow(wpa3_aps) > 0) {
+    +     cat("\nДетальная информация о точках доступа WPA3:\n")
+    +     wpa3_aps_details <- wpa3_aps %>%
+    +         select(mac_address, encryption, essid, power, channel, num_packets) %>%
+    +         arrange(desc(num_packets))
+    +     
+    +     print(wpa3_aps_details)
+    +     
+    +     # 2. Ищем устройства, подключенные к точкам доступа WPA3
+    +     cat("\n2. Поиск устройств, подключенных к точкам доступа WPA3:\n")
+    +     
+    +     # Получаем MAC-адреса точек доступа WPA3
+    +     wpa3_bssids <- wpa3_aps$mac_address
+    +     
+    +     # Ищем устройства, подключенные к этим точкам доступа
+    +     devices_on_wpa3 <- data2_clean %>%
+    +         filter(bssid %in% wpa3_bssids) %>%
+    +         select(station_mac, bssid, power, num_packets, first_time_seen, last_time_seen)
+    +     
+    +     cat("Количество устройств, подключенных к WPA3 точкам доступа:", nrow(devices_on_wpa3), "\n")
+    +     
+    +     if (nrow(devices_on_wpa3) > 0) {
+    +         cat("\nДетали подключенных устройств:\n")
+    +         
+    +         # Добавляем информацию о точке доступа
+    +         devices_on_wpa3_with_details <- devices_on_wpa3 %>%
+    +             left_join(wpa3_aps %>% select(mac_address, essid, encryption), 
+    +                       by = c("bssid" = "mac_address")) %>%
+    +             arrange(desc(num_packets))
+    +         
+    +         print(devices_on_wpa3_with_details)
+    +         
+    +         # Группируем по точкам доступа
+    +         cat("\n3. Статистика по точкам доступа WPA3:\n")
+    +         ap_stats <- devices_on_wpa3_with_details %>%
+    +             group_by(bssid, essid) %>%
+    +             summarise(
+    +                 device_count = n_distinct(station_mac),
+    +                 avg_power = mean(power, na.rm = TRUE),
+    +                 total_packets = sum(num_packets, na.rm = TRUE),
+    +                 first_seen = min(first_time_seen, na.rm = TRUE),
+    +                 last_seen = max(last_time_seen, na.rm = TRUE)
+    +             ) %>%
+    +             arrange(desc(device_count))
+    +         
+    +         print(ap_stats)
+    +         
+    +         # 4. Анализ производительности WPA3 устройств
+    +         cat("\n4. Анализ производительности устройств на WPA3:\n")
+    +         
+    +         # Сравниваем средние показатели WPA3 с другими типами шифрования
+    +         encryption_comparison <- data1_clean %>%
+    +             mutate(
+    +                 encryption_type = case_when(
+    +                     grepl("WPA3", encryption, ignore.case = TRUE) ~ "WPA3",
+    +                     grepl("WPA2", encryption, ignore.case = TRUE) ~ "WPA2",
+    +                     encryption == "OPN" | encryption == "" | is.na(encryption) ~ "Открытые",
+    +                     TRUE ~ "Другие"
+    +                 )
+    +             ) %>%
+    +             group_by(encryption_type) %>%
+    +             summarise(
+    +                 ap_count = n(),
+    +                 avg_power = mean(power, na.rm = TRUE),
+    +                 avg_packets = mean(num_packets, na.rm = TRUE),
+    +                 avg_rssi = mean(rssi, na.rm = TRUE)
+    +             ) %>%
+    +             arrange(desc(ap_count))
+    +         
+    +         print(encryption_comparison)
+    +         
+    +         # 5. Визуализация
+    +         cat("\n5. Визуализация данных WPA3:\n")
+    +         
+    +         library(ggplot2)
+    +         
+    +         # Количество устройств на каждой точке доступа WPA3
+    +         if (nrow(ap_stats) > 0) {
+    +             p1 <- ggplot(ap_stats, aes(x = reorder(essid, device_count), y = device_count)) +
+    +                 geom_bar(stat = "identity", fill = "#2E7D32", alpha = 0.8) +
+    +                 coord_flip() +
+    +                 labs(
+    +                     title = "Количество устройств на точках доступа WPA3",
+    +                     subtitle = paste("Всего устройств на WPA3:", sum(ap_stats$device_count)),
+    +                     x = "Имя точки доступа (ESSID)",
+    +                     y = "Количество устройств"
+    +                 ) +
+    +                 theme_minimal()
+    +             
+    +             print(p1)
+    +         }
+    +         
+    +         # Мощность сигнала устройств на WPA3
+    +         if (nrow(devices_on_wpa3_with_details) > 0) {
+    +             p2 <- ggplot(devices_on_wpa3_with_details, aes(x = power)) +
+    +                 geom_histogram(fill = "#4CAF50", bins = 20, alpha = 0.8) +
+    +                 labs(
+    +                     title = "Распределение мощности устройств на WPA3",
+    +                     x = "Мощность сигнала (dBm)",
+    +                     y = "Количество устройств"
+    +                 ) +
+    +                 theme_minimal()
+    +             
+    +             print(p2)
+    +         }
+    +         
+    +         # Сравнение активности по типам шифрования
+    +         p3 <- ggplot(encryption_comparison, aes(x = encryption_type, y = ap_count, fill = encryption_type)) +
+    +             geom_bar(stat = "identity", alpha = 0.8) +
+    +             geom_text(aes(label = ap_count), vjust = -0.5) +
+    +             scale_fill_brewer(palette = "Set2") +
+    +             labs(
+    +                 title = "Сравнение количества точек доступа по типам шифрования",
+    +                 x = "Тип шифрования",
+    +                 y = "Количество точек доступа"
+    +             ) +
+    +             theme_minimal() +
+    +             theme(legend.position = "none")
+    +         
+    +         print(p3)
+    +         
+    +         # 6. Анализ по времени подключения
+    +         cat("\n6. Временной анализ подключений к WPA3:\n")
+    +         
+    +         time_analysis <- devices_on_wpa3_with_details %>%
+    +             mutate(
+    +                 hour = hour(first_time_seen),
+    +                 minute = minute(first_time_seen)
+    +             ) %>%
+    +             group_by(hour) %>%
+    +             summarise(
+    +                 connections = n(),
+    +                 avg_power = mean(power, na.rm = TRUE)
+    +             )
+    +         
+    +         print(time_analysis)
+    +         
+    +         # График активности по часам
+    +         p4 <- ggplot(time_analysis, aes(x = hour, y = connections)) +
+    +             geom_line(color = "#2196F3", size = 1.5) +
+    +             geom_point(color = "#2196F3", size = 3) +
+    +             labs(
+    +                 title = "Активность подключений к WPA3 по часам",
+    +                 x = "Час дня",
+    +                 y = "Количество подключений"
+    +             ) +
+    +             scale_x_continuous(breaks = 9:12) +
+    +             theme_minimal()
+    +         
+    +         print(p4)
+    +         
+    +     } else {
+    +         cat("\nНе найдено устройств, подключенных к точкам доступа WPA3.\n")
+    +     }
+    +     
+    +     # 7. Экспорт результатов
+    +     cat("\n7. Экспорт результатов анализа WPA3:\n")
+    +     
+    +     if (nrow(wpa3_aps) > 0) {
+    +         write_csv(wpa3_aps, "wpa3_access_points.csv")
+    +         cat("- Список точек доступа WPA3 сохранен в 'wpa3_access_points.csv'\n")
+    +     }
+    +     
+    +     if (exists("devices_on_wpa3_with_details") && nrow(devices_on_wpa3_with_details) > 0) {
+    +         write_csv(devices_on_wpa3_with_details, "devices_on_wpa3.csv")
+    +         cat("- Список устройств на WPA3 сохранен в 'devices_on_wpa3.csv'\n")
+    +     }
+    +     
+    +     if (exists("ap_stats") && nrow(ap_stats) > 0) {
+    +         write_csv(ap_stats, "wpa3_ap_statistics.csv")
+    +         cat("- Статистика по точкам доступа WPA3 сохранена в 'wpa3_ap_statistics.csv'\n")
+    +     }
+    +     
+    +     # 8. Безопасность и рекомендации
+    +     cat("\n8. ОЦЕНКА БЕЗОПАСНОСТИ WPA3:\n")
+    +     cat("✓ Обнаружены точки доступа с WPA3: ", nrow(wpa3_aps), "\n")
+    +     cat("✓ Устройств, использующих WPA3: ", ifelse(exists("devices_on_wpa3"), nrow(devices_on_wpa3), 0), "\n")
+    +     cat("\nРекомендации:\n")
+    +     cat("1. WPA3 обеспечивает повышенную безопасность по сравнению с WPA2\n")
+    +     cat("2. Рекомендуется переход всех точек доступа на WPA3\n")
+    +     cat("3. Для обратной совместимости можно использовать режим WPA2/WPA3\n")
+    +     
+    + } else {
+    +     cat("\nТочки доступа с протоколом шифрования WPA3 не обнаружены.\n")
+    +     cat("Это может означать:\n")
+    +     cat("1. В сети не используются современные точки доступа с поддержкой WPA3\n")
+    +     cat("2. В данных указаны только старые типы шифрования\n")
+    +     cat("3. Точки доступа с WPA3 не были активны в период сбора данных\n")
+    + }
+
+    Точки доступа с протоколом шифрования WPA3 не обнаружены.
+    Это может означать:
+    1. В сети не используются современные точки доступа с поддержкой WPA3
+    2. В данных указаны только старые типы шифрования
+    3. Точки доступа с WPA3 не были активны в период сбора данных
+    > 
+    > # 9. Дополнительный поиск в других полях данных
+    > cat("\n9. ДОПОЛНИТЕЛЬНЫЙ ПОИСК УПОМИНАНИЙ WPA3:\n")
+
+    9. ДОПОЛНИТЕЛЬНЫЙ ПОИСК УПОМИНАНИЙ WPA3:
+    > 
+    > # Проверяем все текстовые поля на наличие упоминаний WPA3
+    > all_text_fields <- c(
+    +     data1_clean$encryption,
+    +     data1_clean$cipher,
+    +     data1_clean$auth,
+    +     data1_clean$essid
+    + )
+    > 
+    > wpa3_mentions <- grep("WPA3|SAE|OWE", all_text_fields, ignore.case = TRUE, value = TRUE)
+    > cat("Уникальные упоминания WPA3 в текстовых полях:\n")
+    Уникальные упоминания WPA3 в текстовых полях:
+    > print(unique(wpa3_mentions))
+    [1] "SAE PSK"          "BSSID: WPA3 WPA2"
+    > 
+    > # 10. Создание отчета
+    > cat("\n10. ФИНАЛЬНЫЙ ОТЧЕТ ПО WPA3:\n")
+
+    10. ФИНАЛЬНЫЙ ОТЧЕТ ПО WPA3:
+    > 
+    > wpa3_report <- list(
+    +     summary = list(
+    +         wpa3_access_points = nrow(wpa3_aps),
+    +         wpa3_essids = unique(wpa3_aps$essid),
+    +         wpa3_devices = ifelse(exists("devices_on_wpa3"), nrow(devices_on_wpa3), 0),
+    +         wpa3_encryption_types = unique(wpa3_aps$encryption)
+    +     ),
+    +     details = if (nrow(wpa3_aps) > 0) wpa3_aps_details else "Нет данных",
+    +     recommendations = list(
+    +         "WPA3 обеспечивает защиту от атак перебора паролей",
+    +         "SAE (Simultaneous Authentication of Equals) - более безопасный метод аутентификации",
+    +         "OWE обеспечивает шифрование даже для открытых сетей"
+    +     )
+    + )
+    > 
+    > # Выводим основные выводы
+    > cat("\n=== ОСНОВНЫЕ ВЫВОДЫ ===\n")
+
+    === ОСНОВНЫЕ ВЫВОДЫ ===
+    > if (nrow(wpa3_aps) > 0) {
+    +     cat("✅ Обнаружены современные точки доступа с WPA3\n")
+    +     cat("✅ Количество точек доступа WPA3: ", nrow(wpa3_aps), "\n")
+    +     cat("✅ Имена точек доступа WPA3:\n")
+    +     for (essid in unique(wpa3_aps$essid)) {
+    +         cat("   - ", essid, "\n")
+    +     }
+    +     if (exists("devices_on_wpa3") && nrow(devices_on_wpa3) > 0) {
+    +         cat("✅ Устройств, использующих WPA3: ", nrow(devices_on_wpa3), "\n")
+    +     }
+    + } else {
+    +     cat("⚠️ Точки доступа с WPA3 не обнаружены\n")
+    +     cat("   Рекомендуется обновить оборудование для поддержки WPA3\n")
+    + }
+    ⚠️ Точки доступа с WPA3 не обнаружены
+       Рекомендуется обновить оборудование для поддержки WPA3
+
+## Отсортировать точки доступа по интервалу времени, в течение которого они находились на связи, по убыванию
+
+    # Сортировка точек доступа по длительности работы (время на связи)
+
+    cat("=== СОРТИРОВКА ТОЧЕК ДОСТУПА ПО ВРЕМЕНИ НА СВЯЗИ ===\n")
+
+    # Рассчитываем длительность работы для каждой точки доступа
+    data1_clean <- data1_clean %>%
+      mutate(
+        duration_seconds = as.numeric(difftime(last_seen, first_seen, units = "secs")),
+        duration_minutes = duration_seconds / 60,
+        duration_hours = duration_minutes / 60,
+        duration_formatted = case_when(
+          duration_hours >= 1 ~ sprintf("%.1f ч", duration_hours),
+          duration_minutes >= 1 ~ sprintf("%.0f мин", duration_minutes),
+          TRUE ~ sprintf("%.0f сек", duration_seconds)
+        )
+      )
+
+    # Сортируем по убыванию длительности
+    sorted_aps_by_duration <- data1_clean %>%
+      arrange(desc(duration_seconds))
+
+    cat("Топ-20 точек доступа с наибольшим временем на связи:\n")
+    top_20_aps <- sorted_aps_by_duration %>%
+      select(
+        mac_address,
+        essid,
+        first_seen,
+        last_seen,
+        duration_formatted,
+        duration_minutes,
+        power,
+        num_packets,
+        encryption
+      ) %>%
+      head(20)
+
+    print(top_20_aps)
+
+    # Детальная статистика по длительности
+    cat("\n=== СТАТИСТИКА ПО ДЛИТЕЛЬНОСТИ РАБОТЫ ===\n")
+    duration_stats <- data1_clean %>%
+      summarise(
+        total_aps = n(),
+        avg_duration_minutes = mean(duration_minutes, na.rm = TRUE),
+        median_duration_minutes = median(duration_minutes, na.rm = TRUE),
+        min_duration_minutes = min(duration_minutes, na.rm = TRUE),
+        max_duration_minutes = max(duration_minutes, na.rm = TRUE),
+        total_duration_hours = sum(duration_minutes, na.rm = TRUE) / 60
+      )
+
+    print(duration_stats)
+
+    # Распределение по диапазонам длительности
+    cat("\n=== РАСПРЕДЕЛЕНИЕ ТОЧЕК ДОСТУПА ПО ДЛИТЕЛЬНОСТИ ===\n")
+    duration_categories <- data1_clean %>%
+      mutate(
+        duration_category = case_when(
+          duration_minutes < 1 ~ "Менее 1 минуты",
+          duration_minutes < 5 ~ "1-5 минут",
+          duration_minutes < 15 ~ "5-15 минут",
+          duration_minutes < 30 ~ "15-30 минут",
+          duration_minutes < 60 ~ "30-60 минут",
+          duration_minutes < 120 ~ "1-2 часа",
+          duration_minutes >= 120 ~ "Более 2 часов"
+        )
+      ) %>%
+      count(duration_category) %>%
+      mutate(
+        percentage = round(n / sum(n) * 100, 1)
+      ) %>%
+      arrange(desc(n))
+
+    print(duration_categories)
+
+    # Анализ самых стабильных точек доступа
+    cat("\n=== САМЫЕ СТАБИЛЬНЫЕ ТОЧКИ ДОСТУПА (более 1 часа) ===\n")
+    stable_aps <- sorted_aps_by_duration %>%
+      filter(duration_minutes >= 60) %>%
+      select(
+        mac_address,
+        essid,
+        duration_formatted,
+        duration_minutes,
+        power,
+        num_packets,
+        encryption,
+        channel
+      ) %>%
+      arrange(desc(duration_minutes))
+
+    cat("Количество стабильных точек доступа (≥1 час):", nrow(stable_aps), "\n")
+    if (nrow(stable_aps) > 0) {
+      print(stable_aps)
+    }
+
+    # Исправленный блок корреляции - обрабатываем пропущенные значения
+    cat("\n=== КОРРЕЛЯЦИЯ ДЛИТЕЛЬНОСТИ С ПАРАМЕТРАМИ ===\n")
+
+    # Создаем корреляционную матрицу для числовых параметров с обработкой пропусков
+    numeric_data <- data1_clean %>%
+      select(duration_minutes, power, num_packets, rssi, beacons, iv, channel) %>%
+      # Удаляем строки, где нет хотя бы одной пары значений для корреляции
+      filter(!is.na(duration_minutes))
+
+    # Попробуем вычислить корреляции только для доступных пар переменных
+    cat("\nПопарные корреляции с длительностью работы:\n")
+
+    # Функция для безопасного вычисления корреляции
+    safe_cor <- function(x, y) {
+      # Удаляем NA для этой пары переменных
+      complete_cases <- complete.cases(x, y)
+      if (sum(complete_cases) < 2) {
+        return(NA)
+      }
+      cor(x[complete_cases], y[complete_cases], use = "complete.obs")
+    }
+
+    # Вычисляем корреляции отдельно для каждой пары с длительностью
+    correlations <- data.frame(
+      parameter = c("power", "num_packets", "rssi", "beacons", "iv", "channel"),
+      correlation = NA,
+      available_pairs = NA
+    )
+
+    # Заполняем корреляции
+    for (i in 1:nrow(correlations)) {
+      param_name <- correlations$parameter[i]
+      if (param_name %in% colnames(numeric_data)) {
+        x <- numeric_data$duration_minutes
+        y <- numeric_data[[param_name]]
+        correlations$correlation[i] <- safe_cor(x, y)
+        correlations$available_pairs[i] <- sum(complete.cases(x, y))
+      }
+    }
+
+    print(correlations)
+
+    # Визуализация
+    cat("\n=== ВИЗУАЛИЗАЦИЯ РЕЗУЛЬТАТОВ ===\n")
+
+    library(ggplot2)
+    library(scales)
+
+    # 1. Гистограмма длительности работы
+    p1 <- ggplot(data1_clean, aes(x = duration_minutes)) +
+      geom_histogram(bins = 30, fill = "#4E79A7", alpha = 0.8) +
+      scale_x_continuous(labels = comma_format()) +
+      labs(
+        title = "Распределение длительности работы точек доступа",
+        subtitle = "Прямая шкала по оси X",
+        x = "Длительность работы (минуты)",
+        y = "Количество точек доступа"
+      ) +
+      theme_minimal()
+
+    print(p1)
+
+    # 2. Топ-10 самых долгоработающих точек доступа
+    top_10_longest <- sorted_aps_by_duration %>%
+      head(10) %>%
+      mutate(
+        label = ifelse(is.na(essid) | essid == "Unknown", 
+                       substr(mac_address, 10, 17), 
+                       paste0(essid, "\n", substr(mac_address, 10, 17)))
+      )
+
+    p2 <- ggplot(top_10_longest, aes(x = reorder(label, duration_minutes), y = duration_minutes)) +
+      geom_bar(stat = "identity", fill = "#F28E2B", alpha = 0.8) +
+      coord_flip() +
+      labs(
+        title = "Топ-10 точек доступа по времени на связи",
+        x = "Точка доступа (ESSID + MAC)",
+        y = "Длительность работы (минуты)"
+      ) +
+      scale_y_continuous(labels = comma_format()) +
+      theme_minimal()
+
+    print(p2)
+
+    # 3. Связь длительности и мощности сигнала (только для полных пар)
+    if (correlations$available_pairs[correlations$parameter == "power"] > 1) {
+      p3 <- ggplot(data1_clean %>% filter(!is.na(power)), aes(x = power, y = duration_minutes)) +
+        geom_point(alpha = 0.5, color = "#E15759") +
+        geom_smooth(method = "lm", color = "#59A14F", se = FALSE) +
+        labs(
+          title = "Зависимость длительности работы от мощности сигнала",
+          x = "Мощность сигнала (dBm)",
+          y = "Длительность работы (минуты)"
+        ) +
+        theme_minimal()
+      
+      print(p3)
+    } else {
+      cat("\nНедостаточно данных для визуализации связи длительности и мощности\n")
+    }
+
+    # 4. Связь длительности и количества пакетов (только для полных пар)
+    if (correlations$available_pairs[correlations$parameter == "num_packets"] > 1) {
+      p4 <- ggplot(data1_clean %>% filter(!is.na(num_packets)), aes(x = num_packets, y = duration_minutes)) +
+        geom_point(alpha = 0.5, color = "#76B7B2") +
+        geom_smooth(method = "lm", color = "#EDC949", se = FALSE) +
+        scale_x_log10(labels = comma_format()) +
+        labs(
+          title = "Зависимость длительности работы от количества пакетов",
+          x = "Количество пакетов (log10)",
+          y = "Длительность работы (минуты)"
+        ) +
+        theme_minimal()
+      
+      print(p4)
+    } else {
+      cat("\nНедостаточно данных для визуализации связи длительности и количества пакетов\n")
+    }
+
+    # 5. Диаграмма распределения по категориям длительности
+    p5 <- ggplot(duration_categories, aes(x = reorder(duration_category, -n), y = n, fill = n)) +
+      geom_bar(stat = "identity", alpha = 0.8) +
+      geom_text(aes(label = paste0(n, " (", percentage, "%)")), vjust = -0.5, size = 3) +
+      scale_fill_gradient(low = "#B07AA1", high = "#59A14F") +
+      labs(
+        title = "Распределение точек доступа по времени на связи",
+        x = "Категория длительности",
+        y = "Количество точек доступа"
+      ) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+    print(p5)
+
+    # 6. Временная шкала работы точек доступа
+    if (nrow(data1_clean) > 0) {
+      # Создаем упорядоченный график временных интервалов
+      timeline_data <- data1_clean %>%
+        arrange(first_seen) %>%
+        mutate(
+          ap_id = row_number(),
+          ap_label = ifelse(is.na(essid) | essid == "Unknown", 
+                            substr(mac_address, 10, 17), 
+                            essid)
+        )
+      
+      p6 <- ggplot(timeline_data, aes(x = first_seen, xend = last_seen, y = reorder(ap_label, -duration_minutes), yend = reorder(ap_label, -duration_minutes))) +
+        geom_segment(aes(color = duration_minutes), size = 2, alpha = 0.7) +
+        scale_color_gradient(low = "#FF6B6B", high = "#4ECDC4", name = "Длительность\n(минуты)") +
+        labs(
+          title = "Временные интервалы работы точек доступа",
+          x = "Время",
+          y = "Точка доступа"
+        ) +
+        theme_minimal() +
+        theme(
+          axis.text.y = element_text(size = 6),
+          legend.position = "right"
+        )
+      
+      print(p6)
+    }
+
+    # Экспорт результатов
+    cat("\n=== ЭКСПОРТ РЕЗУЛЬТАТОВ ===\n")
+
+    # Сохраняем отсортированные данные
+    write_csv(sorted_aps_by_duration, "access_points_sorted_by_duration.csv")
+    cat("1. Отсортированные точки доступа сохранены в 'access_points_sorted_by_duration.csv'\n")
+
+    # Сохраняем топ самых стабильных
+    if (nrow(stable_aps) > 0) {
+      write_csv(stable_aps, "stable_access_points.csv")
+      cat("2. Стабильные точки доступа (≥1 час) сохранены в 'stable_access_points.csv'\n")
+    }
+
+    # Сохраняем статистику
+    write_csv(duration_stats %>% as.data.frame(), "duration_statistics.csv")
+    cat("3. Статистика по длительности сохранена в 'duration_statistics.csv'\n")
+
+    write_csv(duration_categories, "duration_categories.csv")
+    cat("4. Категории длительности сохранены в 'duration_categories.csv'\n")
+
+    write_csv(correlations, "duration_correlations.csv")
+    cat("5. Корреляции с длительностью сохранены в 'duration_correlations.csv'\n")
+
+    # Создаем отчет
+    report <- list(
+      summary = list(
+        total_access_points = nrow(data1_clean),
+        total_duration_hours = round(duration_stats$total_duration_hours, 1),
+        average_duration_minutes = round(duration_stats$avg_duration_minutes, 1),
+        median_duration_minutes = round(duration_stats$median_duration_minutes, 1),
+        longest_duration_minutes = round(duration_stats$max_duration_minutes, 1),
+        stable_aps_count = nrow(stable_aps)
+      ),
+      top_10_longest = top_10_longest %>% select(mac_address, essid, duration_minutes, encryption),
+      duration_distribution = duration_categories,
+      correlations = correlations
+    )
+
+    library(jsonlite)
+    write_json(report, "duration_analysis_report.json", pretty = TRUE)
+    cat("6. Полный отчет сохранен в 'duration_analysis_report.json'\n")
+
+    # Выводы
+    cat("\n=== ОСНОВНЫЕ ВЫВОДЫ ===\n")
+    cat("1. Всего проанализировано точек доступа:", nrow(data1_clean), "\n")
+    cat("2. Общее время работы всех точек доступа:", round(duration_stats$total_duration_hours, 1), "часов\n")
+    cat("3. Средняя длительность работы:", round(duration_stats$avg_duration_minutes, 1), "минут\n")
+    cat("4. Медианная длительность работы:", round(duration_stats$median_duration_minutes, 1), "минут\n")
+    cat("5. Максимальная длительность работы:", round(duration_stats$max_duration_minutes, 1), "минут\n")
+    cat("6. Стабильных точек доступа (≥1 час):", nrow(stable_aps), "\n")
+    cat("7. Распределение по категориям длительности:\n")
+    for (i in 1:nrow(duration_categories)) {
+      cat("   - ", duration_categories$duration_category[i], ": ", 
+          duration_categories$n[i], " (", duration_categories$percentage[i], "%)\n", sep = "")
+    }
+    cat("\n8. Корреляции длительности работы с другими параметрами:\n")
+    for (i in 1:nrow(correlations)) {
+      if (!is.na(correlations$correlation[i])) {
+        cat("   - ", correlations$parameter[i], ": ", 
+            round(correlations$correlation[i], 3), 
+            " (на основе ", correlations$available_pairs[i], " пар наблюдений)\n", sep = "")
+      }
+    }
+
+## Обнаружить устройства, которые НЕ рандомизируют свой MAC адрес и показать результаты
+
+    > cat("=== ОБНАРУЖЕНИЕ УСТРОЙСТВ, КОТОРЫЕ НЕ РАНДОМИЗИРУЮТ MAC-АДРЕС ===\n")
+    === ОБНАРУЖЕНИЕ УСТРОЙСТВ, КОТОРЫЕ НЕ РАНДОМИЗИРУЮТ MAC-АДРЕС ===
+    > 
+    > # 1. Функция для определения, рандомизирован ли MAC-адрес
+    > is_randomized_mac <- function(mac_address) {
+    +     # Приводим MAC-адрес к стандартному формату
+    +     clean_mac <- gsub("[:.-]", "", toupper(mac_address))
+    +     
+    +     # Проверяем длину MAC-адреса
+    +     if (nchar(clean_mac) != 12) return(NA)
+    +     
+    +     # Получаем второй байт (символы 3-4)
+    +     second_byte <- substr(clean_mac, 3, 4)
+    +     
+    +     # Преобразуем в двоичный вид
+    +     second_byte_dec <- strtoi(second_byte, 16)
+    +     
+    +     # Проверяем второй бит второго байта (бит локального управления)
+    +     # Если этот бит установлен (1), значит MAC-адрес рандомизирован
+    +     # В шестнадцатеричном представлении это:
+    +     # 2, 6, A, E (0x2, 0x6, 0xA, 0xE) и их комбинации с битом универсального/локального
+    +     # Но более точно: второй бит второго байта должен быть 1
+    +     
+    +     # Маска для проверки второго бита: 00000010 (0x02)
+    +     is_randomized <- bitwAnd(second_byte_dec, 0x02) == 0x02
+    +     
+    +     return(is_randomized)
+    + }
+    > 
+    > # 2. Применяем функцию к данным об устройствах
+    > data2_clean <- data2_clean %>%
+    +     mutate(
+    +         mac_randomized = sapply(station_mac, is_randomized_mac)
+    +     )
+    > 
+    > cat("Анализ рандомизации MAC-адресов:\n")
+    Анализ рандомизации MAC-адресов:
+    > mac_randomization_stats <- data2_clean %>%
+    +     summarise(
+    +         total_devices = n(),
+    +         randomized_macs = sum(mac_randomized, na.rm = TRUE),
+    +         non_randomized_macs = sum(!mac_randomized, na.rm = TRUE),
+    +         unknown_macs = sum(is.na(mac_randomized)),
+    +         randomized_percent = round(randomized_macs / total_devices * 100, 1),
+    +         non_randomized_percent = round(non_randomized_macs / total_devices * 100, 1)
+    +     )
+    > 
+    > print(mac_randomization_stats)
+    # A tibble: 1 × 6
+      total_devices randomized_macs non_randomized_macs unknown_macs randomized_percent non_randomized_percent
+              <int>           <int>               <int>        <int>              <dbl>                  <dbl>
+    1         12081            5867                6214            0               48.6                   51.4
+    > 
+    > # 3. Устройства, которые НЕ рандомизируют MAC-адрес (потенциально уязвимые)
+    > cat("\n=== УСТРОЙСТВА, КОТОРЫЕ НЕ РАНДОМИЗИРУЮТ MAC-АДРЕС ===\n")
+
+    === УСТРОЙСТВА, КОТОРЫЕ НЕ РАНДОМИЗИРУЮТ MAC-АДРЕС ===
+    > 
+    > non_randomized_devices <- data2_clean %>%
+    +     filter(mac_randomized == FALSE) %>%
+    +     arrange(desc(num_packets))
+    > 
+    > cat("Количество устройств без рандомизации MAC:", nrow(non_randomized_devices), "\n")
+    Количество устройств без рандомизации MAC: 6214 
+    > cat("Процент от общего числа:", round(nrow(non_randomized_devices) / nrow(data2_clean) * 100, 1), "%\n")
+    Процент от общего числа: 51.4 %
+    > 
+    > if (nrow(non_randomized_devices) > 0) {
+    +     cat("\nТоп-20 устройств без рандомизации MAC (по активности):\n")
+    +     top_non_randomized <- non_randomized_devices %>%
+    +         select(
+    +             station_mac,
+    +             power,
+    +             num_packets,
+    +             bssid,
+    +             probed_essids,
+    +             first_time_seen,
+    +             last_time_seen
+    +         ) %>%
+    +         head(20)
+    +     
+    +     print(top_non_randomized)
+    + }
+
+    Топ-20 устройств без рандомизации MAC (по активности):
+    # A tibble: 20 × 7
+       station_mac       power num_packets bssid          probed_essids first_time_seen     last_time_seen     
+       <chr>             <dbl>       <dbl> <chr>          <chr>         <dttm>              <dttm>             
+     1 00:95:69:E7:7D:21   -33        8171 (not associat… nvripcsuite   2023-07-28 09:13:15 2023-07-28 11:56:17
+     2 00:95:69:E7:7C:ED   -55        4096 (not associat… nvripcsuite   2023-07-28 09:13:11 2023-07-28 11:56:13
+     3 00:95:69:E7:7F:35   -69        2245 (not associat… nvripcsuite   2023-07-28 09:13:11 2023-07-28 11:56:07
+     4 F6:4D:98:98:18:C3   -61        1062 00:26:99:F2:7… GIVC          2023-07-28 09:14:37 2023-07-28 11:55:29
+     5 C0:E4:34:D8:E7:E5   -61         958 BE:F1:71:D5:1… C322U13 3965  2023-07-28 09:13:03 2023-07-28 11:53:16
+     6 04:8C:9A:0B:40:EA   -73         756 E8:28:C1:DD:0… MIREA_HOTSPOT 2023-07-28 10:27:47 2023-07-28 11:55:51
+     7 D2:29:A5:2C:7E:50   -45         701 8E:55:4A:85:5… Not specified 2023-07-28 09:24:48 2023-07-28 11:50:35
+     8 BC:F1:71:D5:0E:53   -35         675 (not associat… Not specified 2023-07-28 09:13:17 2023-07-28 11:50:10
+     9 BC:F1:71:D5:17:8B   -29         667 (not associat… Not specified 2023-07-28 09:13:13 2023-07-28 11:50:47
+    10 BC:F1:71:D5:48:00   -37         635 (not associat… Not specified 2023-07-28 09:13:33 2023-07-28 11:50:58
+    11 BC:F1:71:D5:B3:5D   -61         617 (not associat… Not specified 2023-07-28 09:13:22 2023-07-28 11:50:54
+    12 BC:F1:71:D6:10:D7   -31         606 (not associat… Not specified 2023-07-28 09:13:19 2023-07-28 11:50:42
+    13 34:E1:2D:3C:C8:2D   -59         580 6E:C7:EC:16:D… Cnet          2023-07-28 09:13:29 2023-07-28 11:51:50
+    14 BC:F1:71:D5:12:BD   -35         557 (not associat… Not specified 2023-07-28 09:25:20 2023-07-28 11:53:06
+    15 BC:F1:71:D4:CC:7C   -29         539 (not associat… Not specified 2023-07-28 09:13:21 2023-07-28 11:49:21
+    16 BC:F1:71:D5:3F:C7   -55         463 (not associat… Not specified 2023-07-28 09:13:24 2023-07-28 11:55:58
+    17 10:51:07:FE:77:B6   -55         444 (not associat… Not specified 2023-07-28 09:13:41 2023-07-28 11:55:47
+    18 CA:54:C4:8B:B5:3A   -65         437 00:26:99:F2:7… GIVC          2023-07-28 09:13:06 2023-07-28 11:55:04
+    19 BC:F1:71:D5:14:66   -47         426 (not associat… Not specified 2023-07-28 09:14:16 2023-07-28 11:55:39
+    20 10:51:07:FE:77:B1   -51         409 (not associat… Not specified 2023-07-28 09:20:46 2023-07-28 11:56:14
+    > 
+    > # 4. Детальный анализ нерандомизированных устройств
+    > cat("\n=== ДЕТАЛЬНЫЙ АНАЛИЗ НЕРАНДОМИЗИРОВАННЫХ УСТРОЙСТВ ===\n")
+
+    === ДЕТАЛЬНЫЙ АНАЛИЗ НЕРАНДОМИЗИРОВАННЫХ УСТРОЙСТВ ===
+    > 
+    > if (nrow(non_randomized_devices) > 0) {
+    +     # Группируем по производителям (если есть данные)
+    +     if (exists("data2_with_manufacturer")) {
+    +         non_randomized_with_manufacturer <- non_randomized_devices %>%
+    +             left_join(data2_with_manufacturer %>% select(station_mac, manufacturer), 
+    +                       by = "station_mac")
+    +         
+    +         cat("\nРаспределение нерандомизированных устройств по производителям:\n")
+    +         manufacturer_stats_non_randomized <- non_randomized_with_manufacturer %>%
+    +             group_by(manufacturer) %>%
+    +             summarise(
+    +                 device_count = n(),
+    +                 avg_power = mean(power, na.rm = TRUE),
+    +                 total_packets = sum(num_packets, na.rm = TRUE)
+    +             ) %>%
+    +             arrange(desc(device_count))
+    +         
+    +         print(manufacturer_stats_non_randomized)
+    +     }
+    +     
+    +     # Анализ по времени активности
+    +     cat("\nВременное распределение активности нерандомизированных устройств:\n")
+    +     time_analysis_non_randomized <- non_randomized_devices %>%
+    +         mutate(
+    +             hour = hour(first_time_seen),
+    +             date = as.Date(first_time_seen)
+    +         ) %>%
+    +         group_by(date, hour) %>%
+    +         summarise(
+    +             device_count = n(),
+    +             avg_power = mean(power, na.rm = TRUE),
+    +             .groups = 'drop'
+    +         )
+    +     
+    +     print(time_analysis_non_randomized)
+    +     
+    +     # Статистика по подключениям
+    +     cat("\nСтатистика подключений нерандомизированных устройств:\n")
+    +     connection_stats <- non_randomized_devices %>%
+    +         summarise(
+    +             total_devices = n(),
+    +             connected_devices = sum(bssid != "(not associated)", na.rm = TRUE),
+    +             avg_packets = mean(num_packets, na.rm = TRUE),
+    +             avg_power = mean(power, na.rm = TRUE)
+    +         )
+    +     
+    +     print(connection_stats)
+    + }
+
+    Распределение нерандомизированных устройств по производителям:
+    # A tibble: 3 × 4
+      manufacturer              device_count avg_power total_packets
+      <chr>                            <int>     <dbl>         <dbl>
+    1 Неизвестный производитель         6212     -56.2         55486
+    2 Apple                                1     -59             580
+    3 Intel                                1     -65              16
+
+    Временное распределение активности нерандомизированных устройств:
+    # A tibble: 3 × 4
+      date        hour device_count avg_power
+      <date>     <int>        <int>     <dbl>
+    1 2023-07-28     9         1777     -55.9
+    2 2023-07-28    10         2488     -56.4
+    3 2023-07-28    11         1949     -56.2
+
+    Статистика подключений нерандомизированных устройств:
+    # A tibble: 1 × 4
+      total_devices connected_devices avg_packets avg_power
+              <int>             <int>       <dbl>     <dbl>
+    1          6214                93        9.03     -56.2
+    > 
+    > # 5. Устройства с рандомизированными MAC-адресами
+    > cat("\n=== УСТРОЙСТВА С РАНДОМИЗИРОВАННЫМИ MAC-АДРЕСАМИ ===\n")
+
+    === УСТРОЙСТВА С РАНДОМИЗИРОВАННЫМИ MAC-АДРЕСАМИ ===
+    > 
+    > randomized_devices <- data2_clean %>%
+    +     filter(mac_randomized == TRUE) %>%
+    +     arrange(desc(num_packets))
+    > 
+    > cat("Количество устройств с рандомизацией MAC:", nrow(randomized_devices), "\n")
+    Количество устройств с рандомизацией MAC: 5867 
+    > cat("Процент от общего числа:", round(nrow(randomized_devices) / nrow(data2_clean) * 100, 1), "%\n")
+    Процент от общего числа: 48.6 %
+    > 
+    > # 6. Сравнительный анализ
+    > cat("\n=== СРАВНИТЕЛЬНЫЙ АНАЛИЗ ===\n")
+
+    === СРАВНИТЕЛЬНЫЙ АНАЛИЗ ===
+    > 
+    > comparison_stats <- data2_clean %>%
+    +     group_by(mac_randomized) %>%
+    +     summarise(
+    +         device_count = n(),
+    +         avg_power = mean(power, na.rm = TRUE),
+    +         avg_packets = mean(num_packets, na.rm = TRUE),
+    +         connection_rate = round(sum(bssid != "(not associated)", na.rm = TRUE) / n() * 100, 1),
+    +         avg_duration_minutes = mean(as.numeric(difftime(last_time_seen, first_time_seen, units = "mins")), na.rm = TRUE)
+    +     ) %>%
+    +     mutate(
+    +         mac_randomized = ifelse(is.na(mac_randomized), "Неизвестно", 
+    +                                 ifelse(mac_randomized, "Рандомизирован", "Не рандомизирован"))
+    +     )
+    > 
+    > print(comparison_stats)
+    # A tibble: 2 × 6
+      mac_randomized    device_count avg_power avg_packets connection_rate avg_duration_minutes
+      <chr>                    <int>     <dbl>       <dbl>           <dbl>                <dbl>
+    1 Не рандомизирован         6214     -56.2        9.03             1.5                 2.59
+    2 Рандомизирован            5867     -56.0        4.86             1.6                 1.12
+    > 
+    > # 7. Визуализация
+    > cat("\n=== ВИЗУАЛИЗАЦИЯ РЕЗУЛЬТАТОВ ===\n")
+
+    === ВИЗУАЛИЗАЦИЯ РЕЗУЛЬТАТОВ ===
+    > 
+    > library(ggplot2)
+    > 
+    > # 1. Распределение по типу MAC-адресов
+    > p1 <- ggplot(mac_randomization_stats %>% 
+    +                  pivot_longer(cols = c(randomized_macs, non_randomized_macs),
+    +                               names_to = "type", values_to = "count") %>%
+    +                  mutate(type = ifelse(type == "randomized_macs", 
+    +                                       "Рандомизированные", "Не рандомизированные")),
+    +              aes(x = type, y = count, fill = type)) +
+    +     geom_bar(stat = "identity", alpha = 0.8) +
+    +     geom_text(aes(label = paste0(count, " (", 
+    +                                  ifelse(type == "Рандомизированные", 
+    +                                         mac_randomization_stats$randomized_percent,
+    +                                         mac_randomization_stats$non_randomized_percent), "%)")), 
+    +               vjust = -0.5) +
+    +     scale_fill_manual(values = c("Рандомизированные" = "#4CAF50", 
+    +                                  "Не рандомизированные" = "#F44336")) +
+    +     labs(
+    +         title = "Распределение устройств по типу MAC-адресов",
+    +         subtitle = paste("Всего устройств:", mac_randomization_stats$total_devices),
+    +         x = "Тип MAC-адреса",
+    +         y = "Количество устройств"
+    +     ) +
+    +     theme_minimal() +
+    +     theme(legend.position = "none")
+    > 
+    > print(p1)
+    > 
+    > # 2. Сравнение активности
+    > if (nrow(comparison_stats) > 1) {
+    +     p2 <- ggplot(comparison_stats, aes(x = mac_randomized, y = avg_packets, fill = mac_randomized)) +
+    +         geom_bar(stat = "identity", alpha = 0.8) +
+    +         geom_text(aes(label = round(avg_packets, 1)), vjust = -0.5) +
+    +         scale_fill_brewer(palette = "Set2") +
+    +         labs(
+    +             title = "Сравнение средней активности устройств",
+    +             subtitle = "По количеству пакетов",
+    +             x = "Тип MAC-адреса",
+    +             y = "Среднее количество пакетов"
+    +         ) +
+    +         theme_minimal() +
+    +         theme(legend.position = "none")
+    +     
+    +     print(p2)
+    + }
+    > 
+    > # 3. Мощность сигнала в зависимости от типа MAC
+    > if (nrow(non_randomized_devices) > 0 && nrow(randomized_devices) > 0) {
+    +     combined_data <- bind_rows(
+    +         non_randomized_devices %>% mutate(type = "Не рандомизированные"),
+    +         randomized_devices %>% mutate(type = "Рандомизированные")
+    +     ) %>%
+    +         filter(!is.na(power))
+    +     
+    +     p3 <- ggplot(combined_data, aes(x = type, y = power, fill = type)) +
+    +         geom_boxplot(alpha = 0.7) +
+    +         scale_fill_manual(values = c("Не рандомизированные" = "#F44336", 
+    +                                      "Рандомизированные" = "#4CAF50")) +
+    +         labs(
+    +             title = "Сравнение мощности сигнала",
+    +             subtitle = "В зависимости от типа MAC-адреса",
+    +             x = "Тип MAC-адреса",
+    +             y = "Мощность сигнала (dBm)"
+    +         ) +
+    +         theme_minimal() +
+    +         theme(legend.position = "none")
+    +     
+    +     print(p3)
+    + }
+    > 
+    > # 8. Обнаружение потенциальных аномалий
+    > cat("\n=== ПОТЕНЦИАЛЬНЫЕ АНОМАЛИИ ===\n")
+
+    === ПОТЕНЦИАЛЬНЫЕ АНОМАЛИИ ===
+    > 
+    > # Устройства без рандомизации MAC с высокой активностью
+    > cat("\nНерандомизированные устройства с высокой активностью (>1000 пакетов):\n")
+
+    Нерандомизированные устройства с высокой активностью (>1000 пакетов):
+    > high_activity_non_randomized <- non_randomized_devices %>%
+    +     filter(num_packets > 1000) %>%
+    +     select(station_mac, num_packets, power, bssid, first_time_seen, last_time_seen) %>%
+    +     arrange(desc(num_packets))
+    > 
+    > if (nrow(high_activity_non_randomized) > 0) {
+    +     print(high_activity_non_randomized)
+    +     cat("\nКоличество таких устройств:", nrow(high_activity_non_randomized), "\n")
+    + } else {
+    +     cat("Не обнаружено\n")
+    + }
+    # A tibble: 4 × 6
+      station_mac       num_packets power bssid             first_time_seen     last_time_seen     
+      <chr>                   <dbl> <dbl> <chr>             <dttm>              <dttm>             
+    1 00:95:69:E7:7D:21        8171   -33 (not associated)  2023-07-28 09:13:15 2023-07-28 11:56:17
+    2 00:95:69:E7:7C:ED        4096   -55 (not associated)  2023-07-28 09:13:11 2023-07-28 11:56:13
+    3 00:95:69:E7:7F:35        2245   -69 (not associated)  2023-07-28 09:13:11 2023-07-28 11:56:07
+    4 F6:4D:98:98:18:C3        1062   -61 00:26:99:F2:7A:E2 2023-07-28 09:14:37 2023-07-28 11:55:29
+
+    Количество таких устройств: 4 
+    > 
+    > # Устройства без рандомизации MAC, подключенные к небезопасным сетям
+    > if (exists("insecure_aps")) {
+    +     cat("\nНерандомизированные устройства на небезопасных точках доступа:\n")
+    +     non_randomized_on_insecure <- non_randomized_devices %>%
+    +         filter(bssid %in% insecure_aps$mac_address) %>%
+    +         select(station_mac, bssid, power, num_packets)
+    +     
+    +     if (nrow(non_randomized_on_insecure) > 0) {
+    +         print(non_randomized_on_insecure)
+    +         cat("\nКоличество таких устройств:", nrow(non_randomized_on_insecure), "\n")
+    +     } else {
+    +         cat("Не обнаружено\n")
+    +     }
+    + }
+
+    Нерандомизированные устройства на небезопасных точках доступа:
+    # A tibble: 53 × 4
+       station_mac       bssid             power num_packets
+       <chr>             <chr>             <dbl>       <dbl>
+     1 04:8C:9A:0B:40:EA E8:28:C1:DD:04:52   -73         756
+     2 AC:B5:7D:B4:92:05 2A:E8:A2:02:01:73   -73         281
+     3 16:9C:FD:6C:63:E1 E8:28:C1:DE:74:32   -67         223
+     4 5E:54:01:D6:05:1C E8:28:C1:DE:74:32   -45         135
+     5 48:2C:A0:74:B7:12 E8:28:C1:DC:B2:40   -82         134
+     6 56:14:6C:F1:A5:9E E8:28:C1:DC:F0:90   -57         116
+     7 4C:E0:DB:0B:F8:C2 E8:28:C1:DC:C6:B2   -61         114
+     8 4C:44:5B:14:76:E3 E8:28:C1:DD:04:52    -1          71
+     9 02:01:5B:41:E9:B3 E8:28:C1:DC:FF:F2   -75          66
+    10 48:74:12:82:D7:91 E8:28:C1:DC:B2:52   -69          55
+    # ℹ 43 more rows
+    # ℹ Use `print(n = ...)` to see more rows
+
+    Количество таких устройств: 53 
+    > 
+    > # 9. Экспорт результатов
+    > cat("\n=== ЭКСПОРТ РЕЗУЛЬТАТОВ ===\n")
+
+    === ЭКСПОРТ РЕЗУЛЬТАТОВ ===
+    > 
+    > # Сохраняем все данные с информацией о рандомизации
+    > write_csv(data2_clean, "devices_with_mac_randomization_info.csv")
+    > cat("1. Данные об устройствах с информацией о рандомизации MAC сохранены в 'devices_with_mac_randomization_info.csv'\n")
+    1. Данные об устройствах с информацией о рандомизации MAC сохранены в 'devices_with_mac_randomization_info.csv'
+    > 
+    > if (nrow(non_randomized_devices) > 0) {
+    +     write_csv(non_randomized_devices, "non_randomized_mac_devices.csv")
+    +     cat("2. Устройства без рандомизации MAC сохранены в 'non_randomized_mac_devices.csv'\n")
+    + }
+    2. Устройства без рандомизации MAC сохранены в 'non_randomized_mac_devices.csv'                          
+    > 
+    > if (nrow(randomized_devices) > 0) {
+    +     write_csv(randomized_devices, "randomized_mac_devices.csv")
+    +     cat("3. Устройства с рандомизацией MAC сохранены в 'randomized_mac_devices.csv'\n")
+    + }
+    3. Устройства с рандомизацией MAC сохранены в 'randomized_mac_devices.csv'                               
+    > 
+    > write_csv(mac_randomization_stats, "mac_randomization_statistics.csv")
+    > cat("4. Статистика по рандомизации MAC сохранена в 'mac_randomization_statistics.csv'\n")              
+    4. Статистика по рандомизации MAC сохранена в 'mac_randomization_statistics.csv'
+    > 
+    > write_csv(comparison_stats, "mac_randomization_comparison.csv")
+    > cat("5. Сравнительный анализ сохранен в 'mac_randomization_comparison.csv'\n")                         
+    5. Сравнительный анализ сохранен в 'mac_randomization_comparison.csv'
+    > 
+    > # 10. Рекомендации по безопасности
+    > cat("\n=== РЕКОМЕНДАЦИИ ПО БЕЗОПАСНОСТИ ===\n")
+
+    === РЕКОМЕНДАЦИИ ПО БЕЗОПАСНОСТИ ===
+    > cat("1. Устройства без рандомизации MAC-адресов (", 
+    +     mac_randomization_stats$non_randomized_percent, "%):\n", sep = "")
+    1. Устройства без рандомизации MAC-адресов (51.4%):
+    > cat("   - Могут быть отслежены по их постоянному MAC-адресу\n")
+       - Могут быть отслежены по их постоянному MAC-адресу
+    > cat("   - Уязвимы для атак, основанных на отслеживании устройств\n")
+       - Уязвимы для атак, основанных на отслеживании устройств
+    > cat("   - Рекомендуется включить рандомизацию MAC в настройках устройства\n")
+       - Рекомендуется включить рандомизацию MAC в настройках устройства
+    > cat("\n2. Рандомизация MAC-адресов обеспечивает:\n")
+
+    2. Рандомизация MAC-адресов обеспечивает:
+    > cat("   - Конфиденциальность местоположения\n")
+       - Конфиденциальность местоположения
+    > cat("   - Защиту от отслеживания\n")
+       - Защиту от отслеживания
+    > cat("   - Повышенную безопасность в публичных сетях\n")
+       - Повышенную безопасность в публичных сетях
+    > cat("\n3. Для пользователей:\n")
+
+    3. Для пользователей:
+    > cat("   - Включите 'Приватный MAC-адрес' или аналогичную функцию на устройствах\n")
+       - Включите 'Приватный MAC-адрес' или аналогичную функцию на устройствах
+    > cat("   - Особенно важно для мобильных устройств в публичных местах\n")
+       - Особенно важно для мобильных устройств в публичных местах
+    > 
+    > # 11. Финальный отчет
+    > cat("\n=== ФИНАЛЬНЫЙ ОТЧЕТ ===\n")
+
+    === ФИНАЛЬНЫЙ ОТЧЕТ ===
+    > cat("✅ Анализ завершен\n")
+    ✅ Анализ завершен
+    > cat("📊 Всего проанализировано устройств:", mac_randomization_stats$total_devices, "\n")
+    📊 Всего проанализировано устройств: 12081 
+    > cat("🔒 Устройств с рандомизацией MAC:", mac_randomization_stats$randomized_macs, 
+    +     "(", mac_randomization_stats$randomized_percent, "%)\n", sep = "")
+    🔒 Устройств с рандомизацией MAC:5867(48.6%)
+    > cat("⚠️  Устройств без рандомизации MAC:", mac_randomization_stats$non_randomized_macs, 
+    +     "(", mac_randomization_stats$non_randomized_percent, "%)\n", sep = "")
+    ⚠️  Устройств без рандомизации MAC:6214(51.4%)
+    > cat("❓ Неопределенных MAC:", mac_randomization_stats$unknown_macs, "\n")
+    ❓ Неопределенных MAC: 0 
+    > 
+    > if (mac_randomization_stats$non_randomized_percent > 50) {
+    +     cat("\n🚨 ВНИМАНИЕ: Большинство устройств не используют рандомизацию MAC!\n")
+    +     cat("   Это серьезный риск для конфиденциальности пользователей.\n")
+    + } else if (mac_randomization_stats$randomized_percent > 70) {
+    +     cat("\n✅ ХОРОШО: Большинство устройств используют рандомизацию MAC.\n")
+    +     cat("   Уровень конфиденциальности в сети высокий.\n")
+    + }
+
+## Кластеризовать запросы от устройств к точкам доступа по их именам. Определить время появления устройства в зоне радиовидимости и время выхода его из нее и вывести результат
+
+
+    > # Загружаем необходимые библиотеки
+    > library(tidyverse)
+    > library(lubridate)
+    > 
+    > # ЧАСТЬ 1: ПОДГОТОВКА ДАННЫХ ДЛЯ КЛАСТЕРИЗАЦИИ
+    > 
+    > cat("=== ПОДГОТОВКА ДАННЫХ ДЛЯ КЛАСТЕРИЗАЦИИ ===\n")
+    === ПОДГОТОВКА ДАННЫХ ДЛЯ КЛАСТЕРИЗАЦИИ ===
+    > 
+    > # Создаем таблицу соответствия BSSID -> ESSID из данных о точках доступа
+    > bssid_to_essid <- data1_clean %>%
+    +     select(bssid = mac_address, essid, encryption, channel) %>%
+    +     distinct()
+    > 
+    > # Добавляем имена точек доступа к данным об устройствах
+    > devices_with_essid <- data2_clean %>%
+    +     left_join(bssid_to_essid, by = "bssid") %>%
+    +     mutate(
+    +         essid = ifelse(bssid == "(not associated)" | is.na(essid), 
+    +                        "Not Associated", 
+    +                        essid)
+    +     )
+    > 
+    > cat("✓ Данные подготовлены:\n")
+    ✓ Данные подготовлены:
+    > cat("  - Устройств с информацией о ESSID:", nrow(devices_with_essid), "\n")
+      - Устройств с информацией о ESSID: 12081 
+    > cat("  - Уникальных ESSID:", n_distinct(devices_with_essid$essid), "\n")
+      - Уникальных ESSID: 6 
+    > 
+    > # ЧАСТЬ 2: КЛАСТЕРИЗАЦИЯ УСТРОЙСТВ ПО ИМЕНАМ ТОЧЕК ДОСТУПА
+    > 
+    > cat("\n=== КЛАСТЕРИЗАЦИЯ УСТРОЙСТВ ПО ESSID ===\n")
+
+    === КЛАСТЕРИЗАЦИЯ УСТРОЙСТВ ПО ESSID ===
+    > 
+    > # Создаем кластеры: группируем устройства по ESSID
+    > clusters <- devices_with_essid %>%
+    +     filter(essid != "Not Associated") %>%
+    +     group_by(station_mac, essid) %>%
+    +     summarise(
+    +         first_seen = min(first_time_seen, na.rm = TRUE),    # Время появления
+    +         last_seen = max(last_time_seen, na.rm = TRUE),      # Время выхода
+    +         avg_power = mean(power, na.rm = TRUE),
+    +         total_packets = sum(num_packets, na.rm = TRUE),
+    +         connection_count = n(),
+    +         .groups = 'drop'
+    +     ) %>%
+    +     mutate(
+    +         duration_minutes = as.numeric(difftime(last_seen, first_seen, units = "mins")),
+    +         cluster_id = as.integer(factor(essid))
+    +     )
+    > 
+    > cat("✓ Кластеризация выполнена:\n")
+    ✓ Кластеризация выполнена:
+    > cat("  - Создано кластеров:", n_distinct(clusters$essid), "\n")
+      - Создано кластеров: 5 
+    > cat("  - Всего связей устройство-ESSID:", nrow(clusters), "\n")
+      - Всего связей устройство-ESSID: 186 
+    > 
+    > # ЧАСТЬ 3: ДЕТАЛЬНЫЙ АНАЛИЗ КЛАСТЕРОВ
+    > 
+    > cat("\n=== ДЕТАЛЬНЫЙ АНАЛИЗ КЛАСТЕРОВ ===\n")
+
+    === ДЕТАЛЬНЫЙ АНАЛИЗ КЛАСТЕРОВ ===
+    > 
+    > # Статистика по кластерам
+    > cluster_stats <- clusters %>%
+    +     group_by(essid, cluster_id) %>%
+    +     summarise(
+    +         device_count = n_distinct(station_mac),
+    +         avg_duration_minutes = mean(duration_minutes, na.rm = TRUE),
+    +         avg_power = mean(avg_power, na.rm = TRUE),
+    +         total_packets = sum(total_packets, na.rm = TRUE),
+    +         first_cluster_seen = min(first_seen, na.rm = TRUE),
+    +         last_cluster_seen = max(last_seen, na.rm = TRUE),
+    +         .groups = 'drop'
+    +     ) %>%
+    +     mutate(
+    +         cluster_duration_minutes = as.numeric(difftime(last_cluster_seen, first_cluster_seen, units = "mins"))
+    +     ) %>%
+    +     arrange(desc(device_count))
+    > 
+    > cat("Топ-10 самых популярных кластеров:\n")
+    Топ-10 самых популярных кластеров:
+    > print(head(cluster_stats, 10))
+    # A tibble: 5 × 9
+      essid            cluster_id device_count avg_duration_minutes avg_power total_packets first_cluster_seen 
+      <chr>                 <int>        <int>                <dbl>     <dbl>         <dbl> <dttm>             
+    1 BSSID: OPN                1           94                 24.4     -61.5          8267 2023-07-28 09:13:06
+    2 BSSID: WPA2               3           59                 78.1     -56.0         10407 2023-07-28 09:13:03
+    3 Unknown                   5           25                 14.2     -71.0           867 2023-07-28 09:13:51
+    4 BSSID: WPA                2            4                111.      -75             160 2023-07-28 09:13:27
+    5 BSSID: WPA3 WPA2          4            4                 15.9     -69.8            58 2023-07-28 09:32:07
+    # ℹ 2 more variables: last_cluster_seen <dttm>, cluster_duration_minutes <dbl>
+    > 
+    > # ЧАСТЬ 4: ОПРЕДЕЛЕНИЕ ВРЕМЕНИ ПОЯВЛЕНИЯ И ВЫХОДА
+    > 
+    > cat("\n=== ВРЕМЯ ПОЯВЛЕНИЯ И ВЫХОДА УСТРОЙСТВ ===\n")
+
+    === ВРЕМЯ ПОЯВЛЕНИЯ И ВЫХОДА УСТРОЙСТВ ===
+    > 
+    > device_cluster_details <- clusters %>%
+    +     left_join(bssid_to_essid %>% select(essid, encryption), by = "essid") %>%
+    +     mutate(
+    +         # Форматированное время появления и выхода
+    +         appearance_time = format(first_seen, "%H:%M:%S"),
+    +         exit_time = format(last_seen, "%H:%M:%S"),
+    +         time_in_cluster = paste(appearance_time, "→", exit_time),
+    +         
+    +         # Форматированная длительность
+    +         duration_formatted = case_when(
+    +             duration_minutes >= 60 ~ sprintf("%.1f ч", duration_minutes / 60),
+    +             duration_minutes >= 1 ~ sprintf("%.0f мин", duration_minutes),
+    +             TRUE ~ sprintf("%.0f сек", duration_minutes * 60)
+    +         ),
+    +         
+    +         # Время в зоне радиовидимости (полное время наблюдения)
+    +         visibility_duration = duration_minutes
+    +     ) %>%
+    +     select(
+    +         station_mac,
+    +         essid,
+    +         cluster_id,
+    +         appearance_time,
+    +         exit_time,
+    +         time_in_cluster,
+    +         duration_formatted,
+    +         visibility_duration,
+    +         avg_power,
+    +         total_packets,
+    +         connection_count,
+    +         encryption
+    +     ) %>%
+    +     arrange(essid, desc(visibility_duration))
+    Warning message:
+    In left_join(., bssid_to_essid %>% select(essid, encryption), by = "essid") :
+      Detected an unexpected many-to-many relationship between `x` and `y`.
+    ℹ Row 1 of `x` matches multiple rows in `y`.
+    ℹ Row 1 of `y` matches multiple rows in `x`.
+    ℹ If a many-to-many relationship is expected, set `relationship = "many-to-many"` to silence this warning.
+    > 
+    > cat("\nПримеры устройств с временем появления и выхода:\n")
+
+    Примеры устройств с временем появления и выхода:
+    > print(head(device_cluster_details, 5))
+    # A tibble: 5 × 12
+      station_mac       essid      cluster_id appearance_time exit_time time_in_cluster     duration_formatted
+      <chr>             <chr>           <int> <chr>           <chr>     <chr>               <chr>             
+    1 70:66:55:D0:B6:C7 BSSID: OPN          1 09:14:09        11:56:21  09:14:09 → 11:56:21 2.7 ч             
+    2 70:66:55:D0:B6:C7 BSSID: OPN          1 09:14:09        11:56:21  09:14:09 → 11:56:21 2.7 ч             
+    3 70:66:55:D0:B6:C7 BSSID: OPN          1 09:14:09        11:56:21  09:14:09 → 11:56:21 2.7 ч             
+    4 70:66:55:D0:B6:C7 BSSID: OPN          1 09:14:09        11:56:21  09:14:09 → 11:56:21 2.7 ч             
+    5 70:66:55:D0:B6:C7 BSSID: OPN          1 09:14:09        11:56:21  09:14:09 → 11:56:21 2.7 ч             
+    # ℹ 5 more variables: visibility_duration <dbl>, avg_power <dbl>, total_packets <dbl>,
+    #   connection_count <int>, encryption <chr>
+    > 
+    > # ЧАСТЬ 5: АНАЛИЗ ПОВЕДЕНИЯ УСТРОЙСТВ
+    > 
+    > cat("\n=== АНАЛИЗ ПОВЕДЕНИЯ УСТРОЙСТВ ===\n")
+
+    === АНАЛИЗ ПОВЕДЕНИЯ УСТРОЙСТВ ===
+    > 
+    > # Устройства в нескольких кластерах
+    > multi_cluster_devices <- device_cluster_details %>%
+    +     group_by(station_mac) %>%
+    +     summarise(
+    +         cluster_count = n_distinct(essid),
+    +         total_visibility_minutes = sum(visibility_duration, na.rm = TRUE),
+    +         avg_power = mean(avg_power, na.rm = TRUE),
+    +         first_appearance = min(appearance_time, na.rm = TRUE),
+    +         last_exit = max(exit_time, na.rm = TRUE)
+    +     ) %>%
+    +     filter(cluster_count > 1) %>%
+    +     arrange(desc(cluster_count))
+    > 
+    > cat("Устройств в нескольких кластерах:", nrow(multi_cluster_devices), "\n")
+    Устройств в нескольких кластерах: 0 
+    > 
+    > # Устройства с самым долгим пребыванием
+    > longest_stay_devices <- device_cluster_details %>%
+    +     group_by(station_mac) %>%
+    +     filter(visibility_duration == max(visibility_duration, na.rm = TRUE)) %>%
+    +     ungroup() %>%
+    +     arrange(desc(visibility_duration)) %>%
+    +     head(5)
+    > 
+    > cat("\nТоп-5 устройств с самым долгим пребыванием:\n")
+
+    Топ-5 устройств с самым долгим пребыванием:
+    > print(longest_stay_devices %>% select(station_mac, essid, duration_formatted))
+    # A tibble: 5 × 3
+      station_mac       essid       duration_formatted
+      <chr>             <chr>       <chr>             
+    1 8C:55:4A:DE:F2:38 BSSID: WPA2 2.7 ч             
+    2 8C:55:4A:DE:F2:38 BSSID: WPA2 2.7 ч             
+    3 8C:55:4A:DE:F2:38 BSSID: WPA2 2.7 ч             
+    4 8C:55:4A:DE:F2:38 BSSID: WPA2 2.7 ч             
+    5 8C:55:4A:DE:F2:38 BSSID: WPA2 2.7 ч             
+    > 
+    > # ЧАСТЬ 6: ЭКСПОРТ РЕЗУЛЬТАТОВ
+    > 
+    > cat("\n=== ЭКСПОРТ РЕЗУЛЬТАТОВ ===\n")
+
+    === ЭКСПОРТ РЕЗУЛЬТАТОВ ===
+    > 
+    > # Сохраняем детальную информацию о кластерах
+    > write_csv(device_cluster_details, "device_cluster_analysis.csv")
+    > cat("✓ Детальный анализ кластеров сохранен в 'device_cluster_analysis.csv'\n")                         
+    ✓ Детальный анализ кластеров сохранен в 'device_cluster_analysis.csv'
+    > 
+    > # Сохраняем статистику кластеров
+    > write_csv(cluster_stats, "cluster_statistics.csv")
+    > cat("✓ Статистика кластеров сохранена в 'cluster_statistics.csv'\n")                                   
+    ✓ Статистика кластеров сохранена в 'cluster_statistics.csv'
+    > 
+    > # Сохраняем устройства в нескольких кластерах
+    > if (nrow(multi_cluster_devices) > 0) {
+    +     write_csv(multi_cluster_devices, "multi_cluster_devices.csv")
+    +     cat("✓ Устройства в нескольких кластерах сохранены в 'multi_cluster_devices.csv'\n")
+    + }
+    > 
+    > # ЧАСТЬ 7: ПРОСТАЯ ВИЗУАЛИЗАЦИЯ
+    > 
+    > cat("\n=== ПРОСТАЯ ВИЗУАЛИЗАЦИЯ ===\n")
+
+    === ПРОСТАЯ ВИЗУАЛИЗАЦИЯ ===
+    > 
+    > # 1. График размеров кластеров
+    > p1 <- cluster_stats %>%
+    +     head(15) %>%
+    +     ggplot(aes(x = reorder(essid, device_count), y = device_count, fill = device_count)) +
+    +     geom_bar(stat = "identity", alpha = 0.8) +
+    +     coord_flip() +
+    +     scale_fill_gradient(low = "lightblue", high = "darkblue") +
+    +     labs(
+    +         title = "Топ-15 кластеров по количеству устройств",
+    +         x = "Имя точки доступа (ESSID)",
+    +         y = "Количество устройств"
+    +     ) +
+    +     theme_minimal() +
+    +     theme(legend.position = "none")
+    > 
+    > print(p1)
+    > 
+    > # 2. График длительности пребывания
+    > p2 <- device_cluster_details %>%
+    +     filter(visibility_duration > 0) %>%
+    +     head(50) %>%
+    +     ggplot(aes(x = reorder(paste0(substr(station_mac, 10, 17), "\n", essid), visibility_duration), 
+    +                y = visibility_duration)) +
+    +     geom_bar(stat = "identity", fill = "steelblue", alpha = 0.7) +
+    +     coord_flip() +
+    +     labs(
+    +         title = "Длительность пребывания устройств в кластерах",
+    +         subtitle = "Топ-50 устройств по времени нахождения",
+    +         x = "Устройство - ESSID",
+    +         y = "Длительность (минуты)"
+    +     ) +
+    +     theme_minimal() +
+    +     theme(
+    +         axis.text.y = element_text(size = 7),
+    +         plot.title = element_text(hjust = 0.5),
+    +         plot.subtitle = element_text(hjust = 0.5)
+    +     )
+    > 
+    > print(p2)
+    > 
+    > # 3. График времени активности кластеров
+    > if (nrow(cluster_stats) > 0) {
+    +     p3 <- cluster_stats %>%
+    +         head(10) %>%
+    +         mutate(
+    +             time_range = paste(
+    +                 format(first_cluster_seen, "%H:%M"),
+    +                 "-",
+    +                 format(last_cluster_seen, "%H:%M")
+    +             )
+    +         ) %>%
+    +         ggplot(aes(x = reorder(essid, device_count), y = device_count, fill = cluster_duration_minutes)) +
+    +         geom_bar(stat = "identity", alpha = 0.8) +
+    +         geom_text(aes(label = time_range), hjust = 0, nudge_y = 0.5, size = 3) +
+    +         coord_flip() +
+    +         scale_fill_gradient(low = "lightgreen", high = "darkgreen", name = "Длительность\nкластера (мин)") +
+    +         labs(
+    +             title = "Топ-10 кластеров с временными интервалами",
+    +             x = "Имя точки доступа (ESSID)",
+    +             y = "Количество устройств"
+    +         ) +
+    +         theme_minimal() +
+    +         theme(
+    +             legend.position = "right",
+    +             plot.title = element_text(hjust = 0.5)
+    +         )
+    +     
+    +     print(p3)
+    + }
+    > 
+    > # ЧАСТЬ 8: СВОДНЫЙ ОТЧЕТ
+    > 
+    > cat("\n=== СВОДНЫЙ ОТЧЕТ ===\n")
+
+    === СВОДНЫЙ ОТЧЕТ ===
+    > cat("========================================\n")
+    ========================================
+    > cat("1. Всего кластеров (уникальных ESSID):", n_distinct(clusters$essid), "\n")
+    1. Всего кластеров (уникальных ESSID): 5 
+    > cat("2. Устройств, отнесенных к кластерам:", n_distinct(clusters$station_mac), "\n")
+    2. Устройств, отнесенных к кластерам: 186 
+    > cat("3. Всего связей устройство-кластер:", nrow(clusters), "\n")
+    3. Всего связей устройство-кластер: 186 
+    > cat("4. Устройств в нескольких кластерах:", nrow(multi_cluster_devices), "\n")
+    4. Устройств в нескольких кластерах: 0 
+    > cat("5. Среднее время пребывания в кластере:", 
+    +     round(mean(device_cluster_details$visibility_duration, na.rm = TRUE), 1), "минут\n")
+    5. Среднее время пребывания в кластере: 47.8 минут
+    > cat("6. Период наблюдения:", 
+    +     format(min(clusters$first_seen, na.rm = TRUE), "%H:%M:%S"), "-",
+    +     format(max(clusters$last_seen, na.rm = TRUE), "%H:%M:%S"), "\n")
+    6. Период наблюдения: 09:13:03 - 11:56:21 
+    > cat("\n7. Топ-3 кластера по количеству устройств:\n")
+
+    7. Топ-3 кластера по количеству устройств:
+    > for (i in 1:min(3, nrow(cluster_stats))) {
+    +     cat("   ", i, ". ", cluster_stats$essid[i], ": ", 
+    +         cluster_stats$device_count[i], " устройств\n", sep = "")
+    + }
+       1. BSSID: OPN: 94 устройств
+       2. BSSID: WPA2: 59 устройств
+       3. Unknown: 25 устройств
+    > 
+    > cat("\n✅ АНАЛИЗ ЗАВЕРШЕН УСПЕШНО!\n")
+
+    ✅ АНАЛИЗ ЗАВЕРШЕН УСПЕШНО!
+    > cat("========================================\n")
+    ========================================
+
+## Оценить стабильность уровня сигнала внури кластера во времени. Выявить наиболее стабильный кластер и вывести результаты
+
+    cat("=== ОЦЕНКА СТАБИЛЬНОСТИ УРОВНЯ СИГНАЛА В КЛАСТЕРАХ ===\n")
+    === ОЦЕНКА СТАБИЛЬНОСТИ УРОВНЯ СИГНАЛА В КЛАСТЕРАХ ===
+    > 
+    > # ЧАСТЬ 1: ПОДГОТОВКА ДАННЫХ ДЛЯ АНАЛИЗА СТАБИЛЬНОСТИ
+    > 
+    > cat("\n1. Подготовка данных для анализа стабильности...\n")
+
+    1. Подготовка данных для анализа стабильности...
+    > 
+    > # Нам нужно получить все отдельные измерения мощности для каждого устройства в каждом кластере
+    > # Для этого используем исходные данные data2_clean и присоединяем информацию о кластерах
+    > 
+    > # Получаем соответствие BSSID -> ESSID
+    > bssid_to_essid <- data1_clean %>%
+    +     select(bssid = mac_address, essid) %>%
+    +     distinct()
+    > 
+    > # Подготавливаем данные с измерениями мощности
+    > signal_stability_data <- data2_clean %>%
+    +     # Добавляем информацию о ESSID
+    +     left_join(bssid_to_essid, by = "bssid") %>%
+    +     # Убираем неассоциированные устройства
+    +     filter(!is.na(essid), essid != "Not Associated", !is.na(power)) %>%
+    +     # Группируем по кластеру (ESSID) и устройству
+    +     group_by(essid, station_mac) %>%
+    +     # Для каждого устройства в кластере вычисляем метрики стабильности
+    +     summarise(
+    +         # Основные метрики
+    +         measurement_count = n(),  # количество измерений
+    +         avg_power = mean(power, na.rm = TRUE),  # средняя мощность
+    +         median_power = median(power, na.rm = TRUE),  # медианная мощность
+    +         min_power = min(power, na.rm = TRUE),  # минимальная мощность
+    +         max_power = max(power, na.rm = TRUE),  # максимальная мощность
+    +         power_range = max_power - min_power,  # размах колебаний мощности
+    +         
+    +         # Метрики стабильности (вариабельности)
+    +         power_sd = sd(power, na.rm = TRUE),  # стандартное отклонение
+    +         power_var = var(power, na.rm = TRUE),  # дисперсия
+    +         power_cv = ifelse(avg_power != 0, abs(power_sd / avg_power) * 100, NA),  # коэффициент вариации (%)
+    +         
+    +         # Временные характеристики
+    +         first_measurement = min(first_time_seen, na.rm = TRUE),
+    +         last_measurement = max(last_time_seen, na.rm = TRUE),
+    +         total_duration_minutes = as.numeric(difftime(last_measurement, first_measurement, units = "mins")),
+    +         
+    +         # Дополнительные метрики
+    +         avg_packets = mean(num_packets, na.rm = TRUE),
+    +         total_measurement_time = n() * 5,  # приблизительное время в минутах (предполагая 5 мин между измерениями)
+    +         
+    +         .groups = 'drop'
+    +     ) %>%
+    +     # Убираем устройства с малым количеством измерений (менее 3)
+    +     filter(measurement_count >= 3) %>%
+    +     # Вычисляем оценку стабильности (чем меньше, тем стабильнее)
+    +     mutate(
+    +         stability_score = power_sd + (power_range / 10),  # комбинированная метрика
+    +         stability_category = case_when(
+    +             power_sd < 5 ~ "Очень стабильный",
+    +             power_sd < 10 ~ "Стабильный",
+    +             power_sd < 15 ~ "Средняя стабильность",
+    +             power_sd < 20 ~ "Нестабильный",
+    +             TRUE ~ "Очень нестабильный"
+    +         )
+    +     )
+    > 
+    > cat("✓ Данные подготовлены:\n")
+    ✓ Данные подготовлены:
+    > cat("  - Уникальных устройств с измерениями:", n_distinct(signal_stability_data$station_mac), "\n")
+      - Уникальных устройств с измерениями: 0 
+    > cat("  - Уникальных кластеров:", n_distinct(signal_stability_data$essid), "\n")
+      - Уникальных кластеров: 0 
+    > cat("  - Всего записей устройство-кластер:", nrow(signal_stability_data), "\n")
+      - Всего записей устройство-кластер: 0 
+    > 
+    > # ЧАСТЬ 2: АНАЛИЗ СТАБИЛЬНОСТИ НА УРОВНЕ КЛАСТЕРОВ
+    > 
+    > cat("\n2. Анализ стабильности на уровне кластеров...\n")
+
+    2. Анализ стабильности на уровне кластеров...
+    > 
+    > # Агрегируем метрики стабильности по кластерам
+    > cluster_stability <- signal_stability_data %>%
+    +     group_by(essid) %>%
+    +     summarise(
+    +         # Количество устройств в кластере
+    +         device_count = n_distinct(station_mac),
+    +         total_measurements = sum(measurement_count, na.rm = TRUE),
+    +         
+    +         # Средние метрики стабильности по кластеру
+    +         avg_power_sd = mean(power_sd, na.rm = TRUE),  # среднее стандартное отклонение
+    +         avg_power_range = mean(power_range, na.rm = TRUE),  # средний размах
+    +         avg_power_cv = mean(power_cv, na.rm = TRUE),  # средний коэффициент вариации
+    +         
+    +         # Медианные метрики (более устойчивые к выбросам)
+    +         median_power_sd = median(power_sd, na.rm = TRUE),
+    +         median_power_range = median(power_range, na.rm = TRUE),
+    +         
+    +         # Минимальные и максимальные значения (границы стабильности)
+    +         min_power_sd = min(power_sd, na.rm = TRUE),
+    +         max_power_sd = max(power_sd, na.rm = TRUE),
+    +         
+    +         # Процент устройств в каждой категории стабильности
+    +         pct_very_stable = sum(stability_category == "Очень стабильный") / device_count * 100,
+    +         pct_stable = sum(stability_category == "Стабильный") / device_count * 100,
+    +         pct_medium = sum(stability_category == "Средняя стабильность") / device_count * 100,
+    +         pct_unstable = sum(stability_category == "Нестабильный") / device_count * 100,
+    +         pct_very_unstable = sum(stability_category == "Очень нестабильный") / device_count * 100,
+    +         
+    +         # Общая оценка стабильности кластера
+    +         overall_stability_score = avg_power_sd + (avg_power_range / 10),
+    +         
+    +         # Дополнительная информация
+    +         avg_measurement_count = mean(measurement_count, na.rm = TRUE),
+    +         avg_duration_minutes = mean(total_duration_minutes, na.rm = TRUE),
+    +         
+    +         .groups = 'drop'
+    +     ) %>%
+    +     # Сортируем по стабильности (от наиболее стабильных к наименее)
+    +     arrange(avg_power_sd) %>%
+    +     # Добавляем рейтинг стабильности
+    +     mutate(
+    +         stability_rank = row_number(),
+    +         stability_grade = case_when(
+    +             stability_rank <= ceiling(n() * 0.2) ~ "A (Отлично)",
+    +             stability_rank <= ceiling(n() * 0.4) ~ "B (Хорошо)",
+    +             stability_rank <= ceiling(n() * 0.6) ~ "C (Средне)",
+    +             stability_rank <= ceiling(n() * 0.8) ~ "D (Плохо)",
+    +             TRUE ~ "E (Очень плохо)"
+    +         )
+    +     )
+    Warning message:
+    There were 2 warnings in `summarise()`.
+    The first warning was:
+    ℹ In argument: `min_power_sd = min(power_sd, na.rm = TRUE)`.
+    Caused by warning in `min()`:
+    ! no non-missing arguments to min; returning Inf
+    ℹ Run warnings()dplyr::last_dplyr_warnings() to see the 1 remaining warning. 
+    > 
+    > # ЧАСТЬ 3: ВЫЯВЛЕНИЕ НАИБОЛЕЕ СТАБИЛЬНОГО КЛАСТЕРА
+    > 
+    > cat("\n3. Выявление наиболее стабильных кластеров...\n")
+
+    3. Выявление наиболее стабильных кластеров...
+    > 
+    > # Топ-5 наиболее стабильных кластеров
+    > top_stable_clusters <- cluster_stability %>%
+    +     filter(device_count >= 3) %>%  # только кластеры с достаточным количеством устройств
+    +     arrange(avg_power_sd) %>%
+    +     head(10)
+    > 
+    > cat("Топ-10 наиболее стабильных кластеров:\n")
+    Топ-10 наиболее стабильных кластеров:
+    > print(top_stable_clusters %>% 
+    +           select(essid, device_count, avg_power_sd, avg_power_range, 
+    +                  stability_grade, pct_very_stable, pct_stable))
+    # A tibble: 0 × 7
+    # ℹ 7 variables: essid <chr>, device_count <int>, avg_power_sd <dbl>, avg_power_range <dbl>,
+    #   stability_grade <chr>, pct_very_stable <dbl>, pct_stable <dbl>
+    > 
+    > # Самый стабильный кластер
+    > most_stable_cluster <- top_stable_clusters %>%
+    +     filter(avg_power_sd == min(avg_power_sd)) %>%
+    +     slice(1)
+    Warning message:
+    There was 1 warning in `filter()`.
+    ℹ In argument: `avg_power_sd == min(avg_power_sd)`.
+    Caused by warning in `min()`:
+    ! no non-missing arguments to min; returning Inf 
+    > 
+    > cat("\nСАМЫЙ СТАБИЛЬНЫЙ КЛАСТЕР:\n")
+
+    САМЫЙ СТАБИЛЬНЫЙ КЛАСТЕР:
+    > cat("========================\n")
+    ========================
+    > cat("ESSID:", most_stable_cluster$essid, "\n")
+    ESSID:  
+    > cat("Рейтинг стабильности:", most_stable_cluster$stability_grade, "\n")
+    Рейтинг стабильности:  
+    > cat("Среднее стандартное отклонение:", round(most_stable_cluster$avg_power_sd, 2), "dBm\n")
+    Среднее стандартное отклонение:  dBm
+    > cat("Средний размах мощности:", round(most_stable_cluster$avg_power_range, 2), "dBm\n")
+    Средний размах мощности:  dBm
+    > cat("Количество устройств:", most_stable_cluster$device_count, "\n")
+    Количество устройств:  
+    > cat("Очень стабильных устройств:", round(most_stable_cluster$pct_very_stable, 1), "%\n")
+    Очень стабильных устройств:  %
+    > cat("Стабильных устройств:", round(most_stable_cluster$pct_stable, 1), "%\n")
+    Стабильных устройств:  %
+    > 
+    > # ЧАСТЬ 4: ПОДРОБНЫЙ АНАЛИЗ САМОГО СТАБИЛЬНОГО КЛАСТЕРА
+    > 
+    > cat("\n4. Подробный анализ самого стабильного кластера...\n")
+
+    4. Подробный анализ самого стабильного кластера...
+    > 
+    > # Получаем детальную информацию об устройствах в самом стабильном кластере
+    > devices_in_stable_cluster <- signal_stability_data %>%
+    +     filter(essid == most_stable_cluster$essid) %>%
+    +     arrange(power_sd)
+    > 
+    > cat("\nУстройства в самом стабильном кластере (от наиболее стабильных):\n")
+
+    Устройства в самом стабильном кластере (от наиболее стабильных):
+    > print(devices_in_stable_cluster %>% 
+    +           select(station_mac, measurement_count, avg_power, power_sd, 
+    +                  power_range, stability_category) %>%
+    +           head(10))
+    # A tibble: 0 × 6
+    # ℹ 6 variables: station_mac <chr>, measurement_count <int>, avg_power <dbl>, power_sd <dbl>,
+    #   power_range <dbl>, stability_category <chr>
+    > 
+    > # Анализ распределения мощности во времени для этого кластера
+    > cat("\nСтатистика мощности сигнала в стабильном кластере:\n")
+
+    Статистика мощности сигнала в стабильном кластере:
+    > power_stats_stable_cluster <- devices_in_stable_cluster %>%
+    +     summarise(
+    +         avg_power_overall = mean(avg_power, na.rm = TRUE),
+    +         median_power_overall = median(avg_power, na.rm = TRUE),
+    +         power_variation = sd(avg_power, na.rm = TRUE),
+    +         min_avg_power = min(avg_power, na.rm = TRUE),
+    +         max_avg_power = max(avg_power, na.rm = TRUE)
+    +     )
+    Warning message:
+    There were 2 warnings in `summarise()`.
+    The first warning was:
+    ℹ In argument: `min_avg_power = min(avg_power, na.rm = TRUE)`.
+    Caused by warning in `min()`:
+    ! no non-missing arguments to min; returning Inf
+    ℹ Run warnings()dplyr::last_dplyr_warnings() to see the 1 remaining warning. 
+    > print(power_stats_stable_cluster)
+    # A tibble: 1 × 5
+      avg_power_overall median_power_overall power_variation min_avg_power max_avg_power
+                  <dbl>                <dbl>           <dbl>         <dbl>         <dbl>
+    1               NaN                   NA              NA           Inf          -Inf
+    > 
+    > # ЧАСТЬ 5: СРАВНЕНИЕ С НАИМЕНЕЕ СТАБИЛЬНЫМИ КЛАСТЕРАМИ
+    > 
+    > cat("\n5. Сравнение с наименее стабильными кластерами...\n")
+
+    5. Сравнение с наименее стабильными кластерами...
+    > 
+    > # Топ-5 наименее стабильных кластеров
+    > least_stable_clusters <- cluster_stability %>%
+    +     filter(device_count >= 3) %>%
+    +     arrange(desc(avg_power_sd)) %>%
+    +     head(5)
+    > 
+    > cat("Топ-5 наименее стабильных кластеров:\n")
+    Топ-5 наименее стабильных кластеров:
+    > print(least_stable_clusters %>% 
+    +           select(essid, device_count, avg_power_sd, avg_power_range, 
+    +                  stability_grade, pct_unstable, pct_very_unstable))
+    # A tibble: 0 × 7
+    # ℹ 7 variables: essid <chr>, device_count <int>, avg_power_sd <dbl>, avg_power_range <dbl>,
+    #   stability_grade <chr>, pct_unstable <dbl>, pct_very_unstable <dbl>
+    > 
+    > # Сравнительный анализ
+    > comparison_data <- bind_rows(
+    +     most_stable_cluster %>% mutate(type = "Самый стабильный"),
+    +     least_stable_clusters %>% slice(1) %>% mutate(type = "Самый нестабильный")
+    + )
+    > 
+    > cat("\nСравнение самого стабильного и самого нестабильного кластеров:\n")
+
+    Сравнение самого стабильного и самого нестабильного кластеров:
+    > print(comparison_data %>% 
+    +           select(type, essid, device_count, avg_power_sd, avg_power_range,
+    +                  pct_very_stable, pct_very_unstable))
+    # A tibble: 0 × 7
+    # ℹ 7 variables: type <chr>, essid <chr>, device_count <int>, avg_power_sd <dbl>, avg_power_range <dbl>,
+    #   pct_very_stable <dbl>, pct_very_unstable <dbl>
+    > 
+    > # ЧАСТЬ 6: ВИЗУАЛИЗАЦИЯ РЕЗУЛЬТАТОВ
+    > 
+    > cat("\n6. Визуализация результатов анализа стабильности...\n")
+
+    6. Визуализация результатов анализа стабильности...
+    > 
+    > library(ggplot2)
+    > 
+    > # 6.1. График распределения стабильности по кластерам
+    > p1 <- cluster_stability %>%
+    +     filter(device_count >= 3) %>%
+    +     ggplot(aes(x = avg_power_sd)) +
+    +     geom_histogram(bins = 20, fill = "steelblue", alpha = 0.7, color = "white") +
+    +     geom_vline(xintercept = most_stable_cluster$avg_power_sd, 
+    +                color = "green", linetype = "dashed", size = 1) +
+    +     geom_vline(xintercept = least_stable_clusters$avg_power_sd[1], 
+    +                color = "red", linetype = "dashed", size = 1) +
+    +     annotate("text", x = most_stable_cluster$avg_power_sd, y = 5, 
+    +              label = "Самый стабильный", color = "green", hjust = -0.1) +
+    +     annotate("text", x = least_stable_clusters$avg_power_sd[1], y = 5, 
+    +              label = "Самый нестабильный", color = "red", hjust = 1.1) +
+    +     labs(
+    +         title = "Распределение стабильности сигнала по кластерам",
+    +         subtitle = "Стандартное отклонение мощности сигнала (dBm)",
+    +         x = "Среднее стандартное отклонение мощности (dBm)",
+    +         y = "Количество кластеров"
+    +     ) +
+    +     theme_minimal() +
+    +     theme(plot.title = element_text(hjust = 0.5))
+    > 
+    > print(p1)
+    Warning messages:
+    1: Removed 1 row containing missing values or values outside the scale range (`geom_vline()`). 
+    2: Removed 1 row containing missing values or values outside the scale range (`geom_text()`). 
+    > 
+    > # 6.2. Топ-10 наиболее стабильных кластеров
+    > p2 <- top_stable_clusters %>%
+    +     ggplot(aes(x = reorder(essid, -avg_power_sd), y = avg_power_sd, fill = stability_grade)) +
+    +     geom_bar(stat = "identity", alpha = 0.8) +
+    +     coord_flip() +
+    +     scale_fill_manual(values = c("A (Отлично)" = "#4CAF50", "B (Хорошо)" = "#8BC34A",
+    +                                  "C (Средне)" = "#FFC107", "D (Плохо)" = "#FF9800",
+    +                                  "E (Очень плохо)" = "#F44336")) +
+    +     labs(
+    +         title = "Топ-10 наиболее стабильных кластеров",
+    +         x = "Имя кластера (ESSID)",
+    +         y = "Среднее стандартное отклонение мощности (dBm)",
+    +         fill = "Оценка стабильности"
+    +     ) +
+    +     theme_minimal() +
+    +     theme(
+    +         legend.position = "right",
+    +         plot.title = element_text(hjust = 0.5)
+    +     )
+    > 
+    > print(p2)
+    Warning message:
+    No shared levels found between `names(values)` of the manual scale and the data's fill values. 
+    > 
+    > # 6.3. Корреляция между количеством устройств и стабильностью
+    > p3 <- cluster_stability %>%
+    +     filter(device_count >= 3) %>%
+    +     ggplot(aes(x = device_count, y = avg_power_sd, size = avg_measurement_count, color = stability_grade)) +
+    +     geom_point(alpha = 0.6) +
+    +     geom_smooth(method = "lm", se = FALSE, color = "blue", size = 0.5) +
+    +     scale_color_manual(values = c("A (Отлично)" = "#4CAF50", "B (Хорошо)" = "#8BC34A",
+    +                                   "C (Средне)" = "#FFC107", "D (Плохо)" = "#FF9800",
+    +                                   "E (Очень плохо)" = "#F44336")) +
+    +     labs(
+    +         title = "Зависимость стабильности от размера кластера",
+    +         subtitle = "Размер точек = среднее количество измерений на устройство",
+    +         x = "Количество устройств в кластере",
+    +         y = "Среднее стандартное отклонение мощности (dBm)",
+    +         color = "Оценка стабильности",
+    +         size = "Ср. измерений"
+    +     ) +
+    +     theme_minimal() +
+    +     theme(plot.title = element_text(hjust = 0.5))
+    > 
+    > print(p3)
+    Warning message:
+    No shared levels found between `names(values)` of the manual scale and the data's colour values. 
+    > 
+    > # 6.4. Распределение устройств по категориям стабильности в топ-5 кластерах
+    > if (nrow(top_stable_clusters) >= 5) {
+    +     top5_clusters <- top_stable_clusters %>% head(5) %>% pull(essid)
+    +     
+    +     stability_distribution <- signal_stability_data %>%
+    +         filter(essid %in% top5_clusters) %>%
+    +         group_by(essid, stability_category) %>%
+    +         summarise(count = n(), .groups = 'drop') %>%
+    +         mutate(
+    +             stability_category = factor(stability_category,
+    +                                         levels = c("Очень стабильный", "Стабильный", 
+    +                                                    "Средняя стабильность", "Нестабильный",
+    +                                                    "Очень нестабильный"))
+    +         )
+    +     
+    +     p4 <- ggplot(stability_distribution, 
+    +                  aes(x = essid, y = count, fill = stability_category)) +
+    +         geom_bar(stat = "identity", position = "fill", alpha = 0.8) +
+    +         scale_fill_manual(values = c("Очень стабильный" = "#4CAF50",
+    +                                      "Стабильный" = "#8BC34A",
+    +                                      "Средняя стабильность" = "#FFC107",
+    +                                      "Нестабильный" = "#FF9800",
+    +                                      "Очень нестабильный" = "#F44336")) +
+    +         labs(
+    +             title = "Распределение устройств по стабильности в топ-5 кластерах",
+    +             subtitle = "Доля устройств с разным уровнем стабильности сигнала",
+    +             x = "Имя кластера (ESSID)",
+    +             y = "Доля устройств",
+    +             fill = "Категория стабильности"
+    +         ) +
+    +         theme_minimal() +
+    +         theme(
+    +             axis.text.x = element_text(angle = 45, hjust = 1),
+    +             plot.title = element_text(hjust = 0.5)
+    +         )
+    +     
+    +     print(p4)
+    + }
+    > 
+    > # ЧАСТЬ 7: ЭКСПОРТ РЕЗУЛЬТАТОВ
+    > 
+    > cat("\n7. Экспорт результатов анализа стабильности...\n")
+
+    7. Экспорт результатов анализа стабильности...
+    > 
+    > # Сохраняем полную статистику по кластерам
+    > write_csv(cluster_stability, "cluster_stability_analysis.csv")
+    > cat("✓ Анализ стабильности кластеров сохранен в 'cluster_stability_analysis.csv'\n")
+    ✓ Анализ стабильности кластеров сохранен в 'cluster_stability_analysis.csv'
+    > 
+    > # Сохраняем детали по устройствам
+    > write_csv(signal_stability_data, "device_signal_stability.csv")
+    > cat("✓ Стабильность сигнала по устройствам сохранена в 'device_signal_stability.csv'\n")
+    ✓ Стабильность сигнала по устройствам сохранена в 'device_signal_stability.csv'
+    > 
+    > # Сохраняем информацию о самом стабильном кластере
+    > write_csv(most_stable_cluster, "most_stable_cluster.csv")
+    > cat("✓ Информация о самом стабильном кластере сохранена в 'most_stable_cluster.csv'\n")
+    ✓ Информация о самом стабильном кластере сохранена в 'most_stable_cluster.csv'
+    > 
+    > # Сохраняем детали по устройствам в самом стабильном кластере
+    > write_csv(devices_in_stable_cluster, "devices_in_most_stable_cluster.csv")
+    > cat("✓ Устройства в самом стабильном кластере сохранены в 'devices_in_most_stable_cluster.csv'\n")
+    ✓ Устройства в самом стабильном кластере сохранены в 'devices_in_most_stable_cluster.csv'
+    > 
+    > # Сохраняем отчет
+    > stability_report <- list(
+    +     summary = list(
+    +         total_clusters_analyzed = nrow(cluster_stability),
+    +         clusters_with_sufficient_data = nrow(cluster_stability %>% filter(device_count >= 3)),
+    +         most_stable_cluster = list(
+    +             essid = most_stable_cluster$essid,
+    +             stability_grade = most_stable_cluster$stability_grade,
+    +             avg_power_sd = round(most_stable_cluster$avg_power_sd, 2),
+    +             device_count = most_stable_cluster$device_count
+    +         ),
+    +         stability_distribution = list(
+    +             grade_a = sum(cluster_stability$stability_grade == "A (Отлично)"),
+    +             grade_b = sum(cluster_stability$stability_grade == "B (Хорошо)"),
+    +             grade_c = sum(cluster_stability$stability_grade == "C (Средне)"),
+    +             grade_d = sum(cluster_stability$stability_grade == "D (Плохо)"),
+    +             grade_e = sum(cluster_stability$stability_grade == "E (Очень плохо)")
+    +         )
+    +     ),
+    +     top_5_stable_clusters = top_stable_clusters %>% 
+    +         head(5) %>% 
+    +         select(essid, device_count, avg_power_sd, stability_grade)
+    + )
+    > 
+    > library(jsonlite)
+
+    Attaching package: ‘jsonlite’
+
+    The following object is masked from ‘package:purrr’:
+
+        flatten
+    > write_json(stability_report, "signal_stability_report.json", pretty = TRUE)
+    > cat("✓ Отчет по стабильности сигнала сохранен в 'signal_stability_report.json'\n")
+    ✓ Отчет по стабильности сигнала сохранен в 'signal_stability_report.json'
+    > 
+    > # ЧАСТЬ 8: ВЫВОДЫ И РЕКОМЕНДАЦИИ
+    > 
+    > cat("\n8. ВЫВОДЫ И РЕКОМЕНДАЦИИ:\n")
+
+    8. ВЫВОДЫ И РЕКОМЕНДАЦИИ:
+    > cat("========================================\n")
+    ========================================
+    > cat("НАИБОЛЕЕ СТАБИЛЬНЫЙ КЛАСТЕР:\n")
+    НАИБОЛЕЕ СТАБИЛЬНЫЙ КЛАСТЕР:
+    > cat("  • ESSID:", most_stable_cluster$essid, "\n")
+      • ESSID:  
+    > cat("  • Среднее отклонение мощности:", round(most_stable_cluster$avg_power_sd, 2), "dBm\n")
+      • Среднее отклонение мощности:  dBm
+    > cat("  • Количество устройств:", most_stable_cluster$device_count, "\n")
+      • Количество устройств:  
+    > cat("  • Оценка стабильности:", most_stable_cluster$stability_grade, "\n")
+      • Оценка стабильности:  
+    > cat("\nОБЩАЯ СТАТИСТИКА:\n")
+
+    ОБЩАЯ СТАТИСТИКА:
+    > cat("  • Проанализировано кластеров:", nrow(cluster_stability), "\n")
+      • Проанализировано кластеров: 0 
+    > cat("  • Кластеров с достаточными данными:", nrow(cluster_stability %>% filter(device_count >= 3)), "\n")
+      • Кластеров с достаточными данными: 0 
+    > cat("  • Среднее отклонение по всем кластерам:", 
+    +     round(mean(cluster_stability$avg_power_sd, na.rm = TRUE), 2), "dBm\n")
+      • Среднее отклонение по всем кластерам: NaN dBm
+    > cat("\nРЕКОМЕНДАЦИИ:\n")
+
+    РЕКОМЕНДАЦИИ:
+    > cat("  1. Кластер '", most_stable_cluster$essid, "' имеет наиболее стабильный сигнал\n", sep = "")
+      1. Кластер '' имеет наиболее стабильный сигнал
+    > cat("  2. Рекомендуется использовать его как эталон для сравнения\n")
+      2. Рекомендуется использовать его как эталон для сравнения
+    > cat("  3. Для улучшения стабильности в других кластерах:\n")
+      3. Для улучшения стабильности в других кластерах:
+    > cat("     • Проверить расположение точек доступа\n")
+         • Проверить расположение точек доступа
+    > cat("     • Устранить источники помех\n")
+         • Устранить источники помех
+    > cat("     • Оптимизировать настройки мощности передачи\n")
+         • Оптимизировать настройки мощности передачи
+    > cat("\n✅ АНАЛИЗ СТАБИЛЬНОСТИ СИГНАЛА ЗАВЕРШЕН\n")
+
+    ✅ АНАЛИЗ СТАБИЛЬНОСТИ СИГНАЛА ЗАВЕРШЕН
+    > cat("========================================\n")
+    ========================================
+
+## Выводы
+
+## 1. Получили знания о методах исследования радиоэлектронной обстановки.
+
+## 2. Составили представление о механизмах работы Wi-Fi сетей на канальном и сетевом уровне модели OSI.
+
+## 3. Зекрепили практические навыки использования языка программирования R для обработки данных
