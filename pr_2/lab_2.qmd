@@ -14,140 +14,71 @@ output-file: README.md
 
 3\. Развить практические навыки использования функций обработки данных пакета dplyr – функции select(), filter(), mutate(), arrange(), group_by()
 
-## Проанализировать встроенный в пакет dplyr набор данных starwars с помощью языка R
+### Атализ встроенного пакета dplyr инабора данных starwars
 
 ```{r}
-print(sessionInfo())
+library(dplyr)
 ```
-
-### Установка dplyr
-
-```        
-install.packages("dplyr")
-```
-
-### Подключение dplyr
-
-```         
-> library(dplyr)
+```{r}
+starwars
 ```
 
 ### Проверка кол-ва строк в датафрейме
 
-```         
-starwars %>% nrow()
-[1] 87
+```{r}
+#| label: q11
+starwars |> nrow()
 ```
 
 ### Проверка кол-ва столбцов в датафрейме
 
-```         
-starwars %>% ncol()
-[1] 14
+```{r}          
+starwars |> ncol()
+
 ```
 
 ### Просмотр примерного вида датафрейма
 
-```         
+```{r}          
 starwars %>% glimpse()
-Rows: 87
-Columns: 14
-$ name       <chr> "Luke Skywalker", "C-3PO", "R2-D2", "Darth Vader", "Leia Organ…
-$ height     <int> 172, 167, 96, 202, 150, 178, 165, 97, 183, 182, 188, 180, 228,…
-$ mass       <dbl> 77.0, 75.0, 32.0, 136.0, 49.0, 120.0, 75.0, 32.0, 84.0, 77.0, …
-$ hair_color <chr> "blond", NA, NA, "none", "brown", "brown, grey", "brown", NA, …
-$ skin_color <chr> "fair", "gold", "white, blue", "white", "light", "light", "lig…
-$ eye_color  <chr> "blue", "yellow", "red", "yellow", "brown", "blue", "blue", "r…
-$ birth_year <dbl> 19.0, 112.0, 33.0, 41.9, 19.0, 52.0, 47.0, NA, 24.0, 57.0, 41.…
-$ sex        <chr> "male", "none", "none", "male", "female", "male", "female", "n…
-$ gender     <chr> "masculine", "masculine", "masculine", "masculine", "feminine"…
-$ homeworld  <chr> "Tatooine", "Tatooine", "Naboo", "Tatooine", "Alderaan", "Tato…
-$ species    <chr> "Human", "Droid", "Droid", "Human", "Human", "Human", "Human",…
-$ films      <list> <"A New Hope", "The Empire Strikes Back", "Return of the Jedi…
-$ vehicles   <list> <"Snowspeeder", "Imperial Speeder Bike">, <>, <>, <>, "Imperi…
-$ starships  <list> <"X-wing", "Imperial shuttle">, <>, <>, "TIE Advanced x1", <>…
 ```
 
 ### Просмотр уникальных рас персонажей
 
-```         
+```{r}          
 starwars %>% summarise(unique_species = n_distinct(species))
-# A tibble: 1 × 1
-  unique_species
-           <int>
-1             38
+
 ```
 
 ### Поиск самого высокого персонажа
 
-```         
+```{r}          
 starwars %>%   filter(height == max(height, na.rm = TRUE))
 
-1 Yarael Poof    264    NA none       white      yellow            NA male  mascul…
 ```
 
 ### Перечень персонажей меньше 170
 
-```         
+```{r}          
 starwars %>%   filter(height < 170)
 
-1 C-3PO          167    75 NA         gold       yellow           112 none  mascu…
- 2 R2-D2           96    32 NA         white, bl… red               33 none  mascu…
- 3 Leia Organa    150    49 brown      light      brown             19 fema… femin…
- 4 Beru White…    165    75 brown      light      blue              47 fema… femin…
- 5 R5-D4           97    32 NA         white, red red               NA none  mascu…
- 6 Yoda            66    17 white      green      brown            896 male  mascu…
- 7 Mon Mothma     150    NA auburn     fair       blue              48 fema… femin…
- 8 Wicket Sys…     88    20 brown      brown      brown              8 male  mascu…
- 9 Nien Nunb      160    68 none       grey       black             NA male  mascu…
-10 Watto          137    NA black      blue, grey yellow            NA male  mascu…
 ```
 
 ### Подсчитать ИМТ
 
-```         
+```{r}          
 starwars %>% mutate(BMI = mass / ( (height/100)^2 ))
-
-# A tibble: 87 × 15
-   name        height  mass hair_color skin_color eye_color birth_year sex   gender
-   <chr>        <int> <dbl> <chr>      <chr>      <chr>          <dbl> <chr> <chr> 
- 1 Luke Skywa…    172    77 blond      fair       blue            19   male  mascu…
- 2 C-3PO          167    75 NA         gold       yellow         112   none  mascu…
- 3 R2-D2           96    32 NA         white, bl… red             33   none  mascu…
- 4 Darth Vader    202   136 none       white      yellow          41.9 male  mascu…
- 5 Leia Organa    150    49 brown      light      brown           19   fema… femin…
- 6 Owen Lars      178   120 brown, gr… light      blue            52   male  mascu…
- 7 Beru White…    165    75 brown      light      blue            47   fema… femin…
- 8 R5-D4           97    32 NA         white, red red             NA   none  mascu…
- 9 Biggs Dark…    183    84 black      light      brown           24   male  mascu…
-10 Obi-Wan Ke…    182    77 auburn, w… fair       blue-gray       57   male  mascu…
 ```
 
 ### Найти 10 самых “вытянутых” персонажей. “Вытянутость” оценить по отношению массы (mass) к росту (height) персонажей.
 
-```         
-> starwars %>% mutate(stretch = mass / height) %>%   
-+     arrange(desc(stretch)) %>%            
-+     slice(1:10) %>%                       
-+     select(name, mass, height, stretch)   
-# A tibble: 10 × 4
-   name                   mass height stretch
-   <chr>                 <dbl>  <int>   <dbl>
- 1 Jabba Desilijic Tiure  1358    175   7.76 
- 2 Grievous                159    216   0.736
- 3 IG-88                   140    200   0.7  
- 4 Owen Lars               120    178   0.674
- 5 Darth Vader             136    202   0.673
- 6 Jek Tono Porkins        110    180   0.611
- 7 Bossk                   113    190   0.595
- 8 Tarfful                 136    234   0.581
- 9 Dexter Jettster         102    198   0.515
-10 Chewbacca               112    228   0.491
+```{r}          
+ starwars %>% mutate(stretch = mass / height) 
 ```
 
 ### Нахождение средего возраста персонажей каждой расы вселенной Звездных войн
 
-```         
+```{r}          
 starwars %>% mutate(age = 2025 - birth_year) %>%
      group_by(species) %>%
      summarise(
@@ -155,24 +86,11 @@ starwars %>% mutate(age = 2025 - birth_year) %>%
      ) %>%
      arrange(desc(avg_age))
 
-# A tibble: 38 × 2
-   species      avg_age
-   <chr>          <dbl>
- 1 Ewok           2017 
- 2 Kel Dor        2003 
- 3 Mon Calamari   1984 
- 4 Rodian         1981 
- 5 Twi'lek        1977 
- 6 Mirialan       1976 
- 7 Gungan         1973 
- 8 Trandoshan     1972 
- 9 Droid          1972.
-10 Human          1971.
 ```
 
 ### Нахождение самый распространенный цвет глаз персонажей вселенной Звездных войн.
 
-```         
+```{r}          
 starwars %>%
      filter(!is.na(eye_color)) %>%
      group_by(eye_color) %>%
@@ -182,16 +100,11 @@ starwars %>%
      arrange(desc(count)) %>%
      slice(1)
 
-# A tibble: 1 × 2
-  eye_color count
-  <chr>     <int>
-1 brown        21
-> 
 ```
 
 ### Подсчет средней длины имени в каждой расе вселенной Звездных войн.
 
-```         
+```{r}          
 starwars %>%
      filter(!is.na(species) & !is.na(name)) %>%   
      group_by(species) %>%                        
@@ -200,19 +113,6 @@ starwars %>%
      ) %>%
      arrange(desc(avg_name_length))  
 
-# A tibble: 37 × 2
-   species   avg_name_length
-   <chr>               <dbl>
- 1 Ewok                 21  
- 2 Hutt                 21  
- 3 Geonosian            17  
- 4 Besalisk             15  
- 5 Mirialan             14  
- 6 Toong                14  
- 7 Aleena               12  
- 8 Cerean               12  
- 9 Gungan               11.7
-10 Human                11.3
 ```
 
 # Оценка результатов
