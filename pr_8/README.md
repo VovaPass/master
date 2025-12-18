@@ -48,7 +48,8 @@ vov41234567890@yandex.ru
 ![](images/im2.jpg) \#### Создание графика - 3 ![](images/im3.jpg) \####
 Готовый дашборд ![](images/dash1.jpg)
 
-Ссылка на деш итоговый https://datalens.ru/k4l4w2xs5vtc4-vpastukhov-dash
+[ссылка на готовый
+дашборд](https://datalens.ru/k4l4w2xs5vtc4-vpastukhov-dash)
 
 ## Оценка результата и вывод
 
