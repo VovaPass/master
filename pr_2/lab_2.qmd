@@ -19,9 +19,7 @@ output-file: README.md
 ```{r}
 library(dplyr)
 ```
-```{r}
-starwars
-```
+
 
 ### Проверка кол-ва строк в датафрейме
 
