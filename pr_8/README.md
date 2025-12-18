@@ -41,12 +41,19 @@ vov41234567890@yandex.ru
 
 #### Создание графика - 1
 
-![](images/im1.jpg)
+![](images/chart1.1.jpg) ![](images/chart1.2.jpg)
 
 #### Создание графика - 2
 
-![](images/im2.jpg) \#### Создание графика - 3 ![](images/im3.jpg) \####
-Готовый дашборд ![](images/dash1.jpg)
+![](images/chart2.1.jpg) ![](images/chart2.2.jpg)
+
+#### Создание графика - 3
+
+![](images/chart3.1.jpg) ![](images/chart3.2.jpg)
+
+#### Готовый дашборд
+
+![](images/dash2.jpg)
 
 [ссылка на готовый
 дашборд](https://datalens.ru/k4l4w2xs5vtc4-vpastukhov-dash)
