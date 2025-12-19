@@ -1,229 +1,571 @@
-# Lab3
+# Lab1
 vov41234567890@yandex.ru
 2025-11-18
 
-# Цели работы
+# Цель работы
 
-1\. Развить практические навыки использования и применения языка R для
-обработки данных
+1.  Развить практические навыки использования языка программирования R
+    для обработки данных
+2.  Развить навыки работы в Rstudio IDE: установка пакетов работа с
+    проектами в Rstudio настройка и работа с Git
+3.  Закрепить знания базовых типов данных языка R и простейших операций
+    с ними
 
-2\. Развить навыки работы в Rstudio IDE:установка пакетов,работа с
-проектами в Rstudio,настройка и работа с Git
+# Исходные данные
 
-## Заходим в окружение swirl
+1.  Ноутбук с ОС MacOS
+2.  RStudio
+3.  Интерпретатор языка R 4.5.1
 
-    swirl::swirl()
+# Общий план выполнения работы
 
-## Изучаем синтактсис и записываем пример
+1.  Установить интерпретатор R
+2.  Установить Rstudio IDE
+3.  Установить программный пакет swirl:
+4.  Запустить задание с помощью swirl::swirl()
+5.  Выбрать из меню курсов R Programming: The basics of programming in R
+    и выполнить:
+    -   базовые структурные блоки (Basic Building Blocks)
+    -   рабочие пространства и файлы (Workspace and Files)
+    -   последовательности чисел (Sequences of Numbers)
+    -   векторы (Vectors)
+    -   пропущенные значения (Missing Values)
 
-    y \<- x - 3 y \[1\] 9
+# Шаги
 
-## Присвоение значений переменной
+## 1. Установка интерпретатора R Studio
 
-    z \<- c(1.1, 9, 3.14)
+Скачиваем установщик по адресу https://posit.co/download/rstudio-desktop
+и устанавливаем R Studio
 
-## Запросим хелпу команды
+``` r
+print(sessionInfo())
+```
 
-    ?c
+    R version 4.5.1 (2025-06-13)
+    Platform: aarch64-apple-darwin20
+    Running under: macOS Tahoe 26.1
 
-## Вывод содержимого
+    Matrix products: default
+    BLAS:   /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRblas.0.dylib 
+    LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
 
-    > z \[1\] 1.10 9.00 3.14
+    locale:
+    [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
 
-## Объединение векторов
+    time zone: Europe/Moscow
+    tzcode source: internal
 
-    > c(z, 555, z) \[1\] 1.10 9.00 3.14 555.00 1.10 9.00 3.14
+    attached base packages:
+    [1] stats     graphics  grDevices utils     datasets  methods   base     
 
-## Числовые вектора в арифметических выражениях
+    loaded via a namespace (and not attached):
+     [1] compiler_4.5.1    fastmap_1.2.0     cli_3.6.5         tools_4.5.1      
+     [5] htmltools_0.5.8.1 rstudioapi_0.17.1 yaml_2.3.10       rmarkdown_2.30   
+     [9] knitr_1.50        jsonlite_2.0.0    xfun_0.54         digest_0.6.37    
+    [13] rlang_1.1.6       evaluate_1.0.5   
 
-    > z \* 2 + 100 \[1\] 102.20 118.00 106.28
+## 2. Установка программного пакета swirl
 
-## Возьмем квадратный корень из z - 1 и присвем его новой переменной
+# Установка пакета swirl с указанием зеркала CRAN для России
 
-    > my_sqrt \<- sqrt(z - 1)
+``` r
+r <- getOption("repos")
+r["CRAN"] <- "https://mirror.truenetwork.ru/CRAN/"
+options(repos = r)
+install.packages("swirl")
+```
 
-## Выведем что находится в my_sqrt.
 
-     my_sqrt \[1\] 0.3162278 2.8284271 1.4628739
+    The downloaded binary packages are in
+        /var/folders/lg/2xmw4mvd0zj8v_t4qmtb_lmm0000gn/T//RtmpMVVUZs/downloaded_packages
 
-## Создаем новую переменную которая равноа значению z деленное на my_sqrt.
+## 3. Запуск задания через swirl
 
-     my_div \<- z/my_sqrt
+    {swirl::swirl()}
 
-## Выведем что находится в my_div.
+## Курс базовые структурные блоки (Basic Building Blocks)
 
-    > my_div \[1\] 3.478505 3.181981 2.146460
+### Присвоение значения х
 
-## Сложим вектора
+``` r
+x <- 5 + 7
+```
 
-    > c(1, 2, 3, 4) + c(0, 10) \[1\] 1 12 3 14
+### Изучаем синтактсис и записываем пример
 
-    > c(1, 2, 3, 4) + c(0, 10, 100) \[1\] 1 12 103 4
+``` r
+y <- x - 3 
+```
 
-## Определим рабочий каталог
+### Присвоение значений переменной
 
-    > getwd() \[1\] "/Users/vladimir"
+``` r
+z <- c(1.1, 9, 3.14)
+```
 
-## Выведем объекты в рабочем пространстве
+### Запросим хелпу команды
 
-    > ls() \[1\] "my_div" "my_sqrt" "temp_dir" "x" "y" "z"
+``` r
+?c
+```
 
-## Присвоение значения
+### Вывод содержимого
 
-    > x \<- 9
+``` r
+ z
+```
 
-## Выведем список всех файлов в рабочем каталоге
+    [1] 1.10 9.00 3.14
 
-    > list.files() \[1\] "\# app.py" "app.py" "Applications" "Cisco Packet Tracer 8.2.2"\
-    > \[5\] "Desktop" "Documents" "Downloads" "edb_pgagent_pg17.app.zip"\
-    > \[9\] "edb_pgjdbc.app.zip" "edb_psqlodbc.app.zip" "from docx import Document.py" "import matplotlib.py"\
-    > \[13\] "import pandas as pd.py" "Library" "Movies" "Music"\
-    > \[17\] "node_modules" "package-lock.json" "package.json" "Pictures"\
-    > \[21\] "postgresql_17.app.zip" "Postman" "pr_1" "Public"\
-    > \[25\] "PycharmProjects" "python3" "RiderProjects" "scripts"\
-    > \[29\] "shop.db" "ssh" "Untitled.ipynb" "untitled.py"\
-    > \[33\] "Untitled1.ipynb" "Untitled2.ipynb" "venv" "Virtual Machines.localized"
+### Объединение векторов
 
-## Вывелем хелпу по команде
+``` r
+c(z, 555, z) 
+```
 
-    > ?list.files
+    [1]   1.10   9.00   3.14 555.00   1.10   9.00   3.14
 
-## Используем функцию args() для определения аргументов list.files().
+### Числовые вектора в арифметических выражениях
 
-    > args(list.files) function (path = ".", pattern = NULL, all.files = FALSE, full.names = FALSE, recursive = FALSE, ignore.case = FALSE, include.dirs = FALSE, no.. = FALSE) NULL
+``` r
+z * 2 + 100 
+```
 
-## Присвоем значение текущего рабочего каталога переменной
+    [1] 102.20 118.00 106.28
 
-    > old.dir \<- getwd()
+### Возьмем квадратный корень из z - 1 и присвем его новой переменной
 
-## Создание каталога
+``` r
+my_sqrt <- sqrt(z - 1)
+```
 
-    > dir.create("testdir")
+### Выведем что находится в my_sqrt.
 
-## Поменяем рабочий каталог
+``` r
+my_sqrt  
+```
 
-    > setwd("testdir")
+    [1] 0.3162278 2.8284271 1.4628739
 
-## Создание нового файла
+### Создаем новую переменную которая равноа значению z деленное на my_sqrt.
 
-    > file.create("mytest.R") \[1\] TRUE
+``` r
+ my_div <- z/my_sqrt
+```
 
-## Провекра каталога
+### Выведем что находится в my_div.
 
-    > list.files() \[1\] "mytest.R"
+``` r
+my_div 
+```
 
-## Проверка наличия в каталоге файла
+    [1] 3.478505 3.181981 2.146460
 
-    > file.exists("mytest.R") \[1\] TRUE
+### Сложим вектора
 
-## Проверим информацию о файле
+``` r
+c(1, 2, 3, 4) + c(0, 10) 
+```
 
-    > file.info("mytest.R") size isdir mode mtime ctime atime uid gid uname grname mytest.R 0 FALSE 644 2025-11-08 13:25:31 2025-11-08 13:25:31 2025-11-08 13:25:31 501 20 vladimir staff
+    [1]  1 12  3 14
 
-## Поменяем имя файла
+``` r
+c(1, 2, 3, 4) + c(0, 10, 100)
+```
 
-    > file.rename("mytest.R", "mytest2.R") \[1\] TRUE
+    Warning in c(1, 2, 3, 4) + c(0, 10, 100): longer object length is not a
+    multiple of shorter object length
 
-## Сделать копию файла
+    [1]   1  12 103   4
 
-    > file.copy("mytest2.R", "mytest3.R") \[1\] TRUE
+## Курс рабочие пространства и файлы (Workspace and Files)
 
-## Проверим путь к файлу
+### Определим рабочий каталог
 
-    > file.path("mytest3.R") \[1\] "mytest3.R"
+``` r
+ getwd() 
+```
 
-    > file.path("folder1", "folder2") \[1\] "folder1/folder2"
+    [1] "/Users/vladimir/Documents/GitHub/master/pr_1"
 
-## Выводим хелпу команды
+### Выведем объекты в рабочем пространстве
 
-    > ?dir.create
+``` r
+ ls()  
+```
 
-## Создадим директорию
+    [1] "my_div"  "my_sqrt" "r"       "x"       "y"       "z"      
 
-    > dir.create(file.path('testdir2', 'testdir3'), recursive = TRUE)
+### Присвоение значения
 
-## Сменим директорию
+``` r
+ x <- 9
+```
 
-    > setwd(old.dir)
+### Выведем список всех файлов в рабочем каталоге
 
-## Создание последовательности чисел различными способами
+``` r
+ list.files()  
+```
 
-    > 1:20 \[1\] 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+    [1] "lab_1.qmd"       "lab_1.rmarkdown" "Lab1_files"      "mytest2.R"      
+    [5] "mytest3.R"       "README.md"       "testdir"         "testdir2"       
 
-    > pi:10 \[1\] 3.141593 4.141593 5.141593 6.141593 7.141593 8.141593 9.141593
+### Вывелем хелпу по команде
 
-    > 15:1 \[1\] 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1
+``` r
+ ?list.files
+```
 
-    > ?`:`
+### Используем функцию args() для определения аргументов list.files().
 
-    > seq(1, 20) \[1\] 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+``` r
+args(list.files) 
+```
 
-    > seq(0, 10, by=0.5) \[1\] 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0 5.5 6.0 6.5 7.0 7.5 8.0 8.5 9.0 9.5 10.0
+    function (path = ".", pattern = NULL, all.files = FALSE, full.names = FALSE, 
+        recursive = FALSE, ignore.case = FALSE, include.dirs = FALSE, 
+        no.. = FALSE) 
+    NULL
 
-    > my_seq \<- seq(5, 10, length=30)
+### Присвоем значение текущего рабочего каталога переменной
 
-    > length(my_seq) \[1\] 30
+``` r
+old.dir <- getwd()
+```
 
-    > 1:length(my_seq) \[1\] 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+### Создание каталога
 
-    > seq(along.with = my_seq) \[1\] 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+``` r
+dir.create("testdir")
+```
 
-    > seq_along(my_seq) \[1\] 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+    Warning in dir.create("testdir"): 'testdir' already exists
 
-    > rep(0, times = 40) \[1\] 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+### Поменяем рабочий каталог
 
-    > rep(c(0, 1, 2), times = 10) \[1\] 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2
+``` r
+setwd("testdir")
+```
 
-    > rep(c(0, 1, 2), each = 10) \[1\] 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2
+### Создание нового файла
 
-## Cоздание числового вектора различными способами
+``` r
+file.create("mytest.R")
+```
 
-    > num_vect \<- c(0.5, 55, -10, 6)
+    [1] TRUE
 
-    > tf \<- num_vect \< 1
+### Провекра каталога
 
-    > num_vect \>= 6 \[1\] FALSE TRUE FALSE TRUE
+``` r
+ list.files() 
+```
 
-## Занесем значения в переменную с дальнейшем выводом результата различными способами(работа с символами)
+    [1] "lab_1.qmd"       "lab_1.rmarkdown" "Lab1_files"      "mytest.R"       
+    [5] "mytest2.R"       "mytest3.R"       "README.md"       "testdir"        
+    [9] "testdir2"       
 
-    > my_char \<- c("My", "name", "is")
+### Проверка наличия в каталоге файла
 
-    > my_char \[1\] "My" "name" "is"
+``` r
+file.exists("mytest.R") 
+```
 
-    > paste(my_char, collapse = " ") \[1\] "My name is"
+    [1] TRUE
 
-    > my_name \<- c(my_char, "Vladimir")
+### Проверим информацию о файле
 
-    > my_name \[1\] "My" "name" "is" "Vladimir"
+``` r
+file.info("mytest.R") 
+```
 
-    > paste(my_name, collapse = " ") \[1\] "My name is Vladimir"
+             size isdir mode               mtime               ctime
+    mytest.R    0 FALSE  644 2025-12-19 21:25:42 2025-12-19 21:25:42
+                           atime uid gid    uname grname
+    mytest.R 2025-12-19 21:25:42 501  20 vladimir  staff
 
-    > paste("Hello","world!", sep = " ") \[1\] "Hello world!"
+### Поменяем имя файла
 
-    > paste(1:3, c("X", "Y", "Z"), sep = "") \[1\] "1X" "2Y" "3Z"
+``` r
+file.rename("mytest.R", "mytest2.R") 
+```
 
-    > paste(LETTERS, 1:4, sep = "-") \[1\] "A-1" "B-2" "C-3" "D-4" "E-1" "F-2" "G-3" "H-4" "I-1" "J-2" "K-3" "L-4" "M-1" "N-2" "O-3" "P-4" "Q-1" "R-2" "S-3" "T-4" \[21\] "U-1" "V-2" "W-3" "X-4" "Y-1" "Z-2"
+    [1] TRUE
 
-## Работа с NA
+### Сделать копию файла
 
-    > x \<- c(44, NA, 5, NA)
+``` r
+file.copy("mytest2.R", "mytest3.R")
+```
 
-    > x \* 3 \[1\] 132 NA 15 NA
+    [1] FALSE
 
-    > y \<- rnorm(1000)
+### Проверим путь к файлу
 
-    > z \<- rep(NA, 1000)
+``` r
+file.path("mytest3.R") 
+```
 
-    > my_data \<- sample(c(y, z), 100)
+    [1] "mytest3.R"
 
-    > my_na \<- is.na(my_data)
+``` r
+file.path("folder1", "folder2") 
+```
 
-    > my_na \[1\] TRUE TRUE TRUE TRUE FALSE FALSE TRUE TRUE FALSE TRUE TRUE TRUE TRUE TRUE FALSE TRUE FALSE FALSE FALSE FALSE \[21\] TRUE TRUE TRUE TRUE FALSE FALSE FALSE TRUE TRUE FALSE FALSE TRUE FALSE FALSE TRUE FALSE FALSE TRUE FALSE FALSE \[41\] FALSE TRUE FALSE FALSE TRUE TRUE FALSE FALSE TRUE TRUE FALSE TRUE TRUE FALSE TRUE TRUE TRUE FALSE TRUE TRUE \[61\] FALSE TRUE FALSE FALSE FALSE TRUE FALSE FALSE FALSE TRUE FALSE FALSE FALSE TRUE FALSE FALSE TRUE TRUE TRUE TRUE \[81\] FALSE FALSE TRUE TRUE FALSE FALSE FALSE FALSE FALSE FALSE TRUE TRUE TRUE TRUE FALSE FALSE FALSE FALSE TRUE TRUE
+    [1] "folder1/folder2"
 
-    > my_data == NA \[1\] NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA \[42\] NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA \[83\] NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA NA
+### Выводим хелпу команды
 
-    > my_data \[1\] NA NA NA NA -0.25077729 0.27757137 NA NA 0.60537518 NA \[11\] NA NA NA NA -0.55365208 NA -1.85595991 -0.44746397 -0.17005184 -0.12493809 \[21\] NA NA NA NA -0.01753650 -0.21762172 0.61188338 NA NA -0.61124826 \[31\] 0.43611976 NA -0.65312591 0.47905511 NA -0.74344991 1.56974517 NA -1.14656403 -1.15140371 \[41\] -0.67485767 NA 1.88509689 -0.62184045 NA NA 0.08784532 0.10171022 NA NA \[51\] -1.04843596 NA NA 2.38910415 NA NA NA 0.28477712 NA NA \[61\] 0.91274524 NA 0.04256764 0.27091969 -0.19401365 NA 0.45746758 -0.08820899 2.31329639 NA \[71\] -0.47824339 -0.80540792 -1.19189055 NA -1.50918308 1.45124898 NA NA NA NA \[81\] 0.34088654 -0.80253520 NA NA -0.03922130 0.77903446 -0.61674156 1.67379959 -1.10870907 -1.29516016 \[91\] NA NA NA NA -0.49182878 -1.99013021 1.61917601 1.29780272 NA NA
+``` r
+?dir.create
+```
 
-    > 0/0 \[1\] NaN
+### Создадим директорию
 
-    > Inf - Inf \[1\] NaN
+``` r
+ dir.create(file.path('testdir2', 'testdir3'), recursive = TRUE)
+```
+
+    Warning in dir.create(file.path("testdir2", "testdir3"), recursive = TRUE):
+    'testdir2/testdir3' already exists
+
+### Сменим директорию
+
+``` r
+ setwd(old.dir)
+```
+
+## Курс последовательности чисел (Sequences of Numbers)
+
+### Создание последовательности чисел различными способами
+
+``` r
+1:20 
+```
+
+     [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
+
+``` r
+pi:10 
+```
+
+    [1] 3.141593 4.141593 5.141593 6.141593 7.141593 8.141593 9.141593
+
+``` r
+15:1 
+```
+
+     [1] 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1
+
+``` r
+?`:`
+```
+
+``` r
+seq(1, 20) 
+```
+
+     [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
+
+``` r
+seq(0, 10, by=0.5) 
+```
+
+     [1]  0.0  0.5  1.0  1.5  2.0  2.5  3.0  3.5  4.0  4.5  5.0  5.5  6.0  6.5  7.0
+    [16]  7.5  8.0  8.5  9.0  9.5 10.0
+
+``` r
+my_seq <- seq(5, 10, length=30)
+```
+
+``` r
+length(my_seq) 
+```
+
+    [1] 30
+
+``` r
+1:length(my_seq) 
+```
+
+     [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+    [26] 26 27 28 29 30
+
+``` r
+seq(along.with = my_seq) 
+```
+
+     [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+    [26] 26 27 28 29 30
+
+``` r
+seq_along(my_seq) 
+```
+
+     [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+    [26] 26 27 28 29 30
+
+``` r
+rep(0, times = 40) 
+```
+
+     [1] 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    [39] 0 0
+
+``` r
+rep(c(0, 1, 2), times = 10) 
+```
+
+     [1] 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2 0 1 2
+
+``` r
+rep(c(0, 1, 2), each = 10) 
+```
+
+     [1] 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2
+
+## Курс векторы (Vectors)
+
+### Cоздание числового вектора различными способами
+
+``` r
+num_vect <- c(0.5, 55, -10, 6)
+```
+
+``` r
+tf <- num_vect < 1
+```
+
+``` r
+num_vect >= 6 
+```
+
+    [1] FALSE  TRUE FALSE  TRUE
+
+### Занесем значения в переменную с дальнейшем выводом результата различными способами(работа с символами)
+
+``` r
+my_char <- c("My", "name", "is")
+```
+
+``` r
+paste(my_char, collapse = " ") 
+```
+
+    [1] "My name is"
+
+``` r
+my_name <- c(my_char, "Vladimir")
+```
+
+``` r
+paste(my_name, collapse = " ") 
+```
+
+    [1] "My name is Vladimir"
+
+``` r
+paste("Hello","world!", sep = " ") 
+```
+
+    [1] "Hello world!"
+
+``` r
+paste(1:3, c("X", "Y", "Z"), sep = "")
+```
+
+    [1] "1X" "2Y" "3Z"
+
+``` r
+paste(LETTERS, 1:4, sep = "-")
+```
+
+     [1] "A-1" "B-2" "C-3" "D-4" "E-1" "F-2" "G-3" "H-4" "I-1" "J-2" "K-3" "L-4"
+    [13] "M-1" "N-2" "O-3" "P-4" "Q-1" "R-2" "S-3" "T-4" "U-1" "V-2" "W-3" "X-4"
+    [25] "Y-1" "Z-2"
+
+## Курс пропущенные значения (Missing Values)
+
+``` r
+x <- c(44, NA, 5, NA)
+```
+
+``` r
+x * 3 
+```
+
+    [1] 132  NA  15  NA
+
+``` r
+y <- rnorm(1000)
+```
+
+``` r
+z <- rep(NA, 1000)
+```
+
+``` r
+my_data <- sample(c(y, z), 100)
+```
+
+``` r
+my_na <- is.na(my_data)
+```
+
+``` r
+my_na 
+```
+
+      [1] FALSE  TRUE  TRUE FALSE  TRUE FALSE FALSE  TRUE FALSE FALSE FALSE  TRUE
+     [13]  TRUE FALSE  TRUE FALSE  TRUE  TRUE FALSE  TRUE FALSE  TRUE  TRUE  TRUE
+     [25]  TRUE FALSE  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE FALSE  TRUE
+     [37] FALSE FALSE  TRUE  TRUE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE FALSE
+     [49] FALSE  TRUE  TRUE  TRUE  TRUE FALSE FALSE FALSE  TRUE  TRUE FALSE FALSE
+     [61] FALSE FALSE  TRUE FALSE FALSE FALSE  TRUE FALSE  TRUE  TRUE  TRUE  TRUE
+     [73] FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE  TRUE  TRUE FALSE FALSE
+     [85] FALSE FALSE FALSE  TRUE FALSE  TRUE FALSE FALSE  TRUE FALSE  TRUE FALSE
+     [97] FALSE  TRUE  TRUE  TRUE
+
+``` r
+my_data 
+```
+
+      [1] -0.01596890          NA          NA  0.10612345          NA -2.74613943
+      [7] -0.59156891          NA -0.53057013  0.52628118  1.24765760          NA
+     [13]          NA -0.26358845          NA  0.64454893          NA          NA
+     [19]  0.90697866          NA -0.39906468          NA          NA          NA
+     [25]          NA  1.30621244          NA          NA -1.96590012          NA
+     [31] -0.05029268  1.51813014 -0.73664147          NA  0.93303866          NA
+     [37] -0.19856607  2.33111424          NA          NA -2.33365122          NA
+     [43]          NA          NA          NA          NA -0.46119687  0.53982973
+     [49]  1.33029311          NA          NA          NA          NA -0.76520300
+     [55]  1.45724054  0.38492169          NA          NA -0.30096603 -0.92730050
+     [61]  0.03610027 -1.25087763          NA -1.36092753 -0.68228691 -1.30171913
+     [67]          NA -0.70412412          NA          NA          NA          NA
+     [73] -1.44489137 -1.10284366 -0.49927092  1.98098617  0.03558054  1.73047965
+     [79] -0.70576590 -0.09311535          NA          NA  0.82988537 -0.05085466
+     [85] -0.33283142 -1.23960926 -0.11416481          NA -0.04580919          NA
+     [91]  0.35184471 -1.72049917          NA -0.10471823          NA -0.55762313
+     [97] -0.73614021          NA          NA          NA
+
+``` r
+Inf - Inf 
+```
+
+    [1] NaN
+
+# Оценка результатов
+
+-   Изучены основы языка R: работа с векторами, последовательностями,
+    пропущенными значениями и файловой системой.
+-   Приобретены навыки использования Rmarkdown для создания отчётов.
+-   Работа загружена в репозиторий GitHub.
+
+# Вывод
+
+В результате выполнения практической работы 1 усвоены базовые операции,
+работа с векторами, последовательностями, пропущенными значениями и
+файловой системой. Получены практические навыки работы в RStudio с
+основными типами данных и функциями языка R.
