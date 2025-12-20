@@ -99,29 +99,22 @@ starwars %>% mutate(age = 2025 - birth_year) %>%
 
 ## Нахождение самый распространенный цвет глаз персонажей вселенной Звездных войн.
 
-```{r}          
-starwars %>%
-     filter(!is.na(eye_color)) %>%
-     group_by(eye_color) %>%
-     summarise(
-         count = n()
-     ) %>%
-     arrange(desc(count)) %>%
-     slice(1)
-
+### 10. Нахождение самого распространенного цвета глаз
+```{r}
+starwars %>% 
+  group_by(eye_color) %>%
+  filter(!is.na(eye_color)) %>%
+  summarise(k = n()) %>%
+  arrange(desc(k)) %>%
+  slice(1)
 ```
 
-## Подсчет средней длины имени в каждой расе вселенной Звездных войн.
-
-```{r}          
-starwars %>%
-     filter(!is.na(species) & !is.na(name)) %>%   
-     group_by(species) %>%                        
-     summarise(
-         avg_name_length = mean(nchar(name))       
-     ) %>%
-     arrange(desc(avg_name_length))  
-
+### 11. Подсчет средней длины имени в каждой расе 
+```{r}
+starwars %>% 
+  group_by(species) %>%
+  filter(!is.na(name)) %>%
+  summarise(name_length = mean(nchar(name)))
 ```
 
 ## Оценка результатов

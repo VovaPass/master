@@ -201,48 +201,45 @@ starwars %>% mutate(age = 2025 - birth_year) %>%
 
 ## Нахождение самый распространенный цвет глаз персонажей вселенной Звездных войн.
 
+### 10. Нахождение самого распространенного цвета глаз
+
 ``` r
-starwars %>%
-     filter(!is.na(eye_color)) %>%
-     group_by(eye_color) %>%
-     summarise(
-         count = n()
-     ) %>%
-     arrange(desc(count)) %>%
-     slice(1)
+starwars %>% 
+  group_by(eye_color) %>%
+  filter(!is.na(eye_color)) %>%
+  summarise(k = n()) %>%
+  arrange(desc(k)) %>%
+  slice(1)
 ```
 
     # A tibble: 1 × 2
-      eye_color count
+      eye_color     k
       <chr>     <int>
     1 brown        21
 
-## Подсчет средней длины имени в каждой расе вселенной Звездных войн.
+### 11. Подсчет средней длины имени в каждой расе
 
 ``` r
-starwars %>%
-     filter(!is.na(species) & !is.na(name)) %>%   
-     group_by(species) %>%                        
-     summarise(
-         avg_name_length = mean(nchar(name))       
-     ) %>%
-     arrange(desc(avg_name_length))  
+starwars %>% 
+  group_by(species) %>%
+  filter(!is.na(name)) %>%
+  summarise(name_length = mean(nchar(name)))
 ```
 
-    # A tibble: 37 × 2
-       species   avg_name_length
-       <chr>               <dbl>
-     1 Ewok                 21  
-     2 Hutt                 21  
-     3 Geonosian            17  
-     4 Besalisk             15  
-     5 Mirialan             14  
-     6 Toong                14  
-     7 Aleena               12  
-     8 Cerean               12  
-     9 Gungan               11.7
-    10 Human                11.3
-    # ℹ 27 more rows
+    # A tibble: 38 × 2
+       species   name_length
+       <chr>           <dbl>
+     1 Aleena          12   
+     2 Besalisk        15   
+     3 Cerean          12   
+     4 Chagrian        10   
+     5 Clawdite        10   
+     6 Droid            4.83
+     7 Dug              7   
+     8 Ewok            21   
+     9 Geonosian       17   
+    10 Gungan          11.7 
+    # ℹ 28 more rows
 
 ## Оценка результатов
 
