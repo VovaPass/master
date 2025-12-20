@@ -31,18 +31,7 @@ vov41234567890@yandex.ru
     -   векторы (Vectors)
     -   пропущенные значения (Missing Values)
 
-## Цель работы
-
-1\. Развить практические навыки использования языка программирования R
-для обработки данных
-
-2\. Развить навыки работы в Rstudio IDE:установка пакетов,работа с
-проектами в Rstudio,настройка и работа с Git
-
-3\. Закрепить знания базовых типов данных языка R и простейших операций
-с ними
-
-## Шаги
+# Шаги
 
 ## Шаг 1:
 
@@ -297,7 +286,7 @@ print(sessionInfo())
     > file.create("mytest.R")
     [1] TRUE
 
-### This should be the only file in this newly created directory. Let’s check this by listing all the files in the current directory.
+#### This should be the only file in this newly created directory. Let’s check this by listing all the files in the current directory.
 
     > list.files()
     [1] "mytest.R"
@@ -537,7 +526,7 @@ print(sessionInfo())
     x <- c(44, NA, 5, NA)
     One more time. You can do it! Or, type info() for more options.
 
-#### Try x \* 3.
+#### Try 3x.
 
     x * 3
     [1] 132  NA  15  NA
@@ -616,14 +605,14 @@ print(sessionInfo())
     Inf - Inf
     [1] NaN
 
-# Оценка результатов
+## Оценка результатов
 
 -   Изучены основы языка R: работа с векторами, последовательностями,
     пропущенными значениями и файловой системой.
 -   Приобретены навыки использования Rmarkdown для создания отчётов.
 -   Работа загружена в репозиторий GitHub.
 
-# Вывод
+## Вывод
 
 В результате выполнения практической работы 1 усвоены базовые операции,
 работа с векторами, последовательностями, пропущенными значениями и
